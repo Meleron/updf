@@ -12,7 +12,7 @@ updf is a web app for managing, editing and working with PDF files. The MVP is s
 
 - **Decided:** ASP.NET Core Web API (.NET), Next.js with TypeScript, Docker Compose for local running, Azure for future hosting, a local git repo moving to GitHub later, Playwright for end-to-end tests, Next.js App Router, pdf.js (rendering, in the browser), PDFsharp (writing, on the backend), Noto fonts, latest stable versions of everything. No database in the MVP.
 - **Not decided (propose options, let the user choose):** database, auth, Next.js UI library, specific Azure services.
-- Once the frontend is scaffolded, add its lint/type-check/test and `npx playwright test <file> -g "<name>"` to **Commands**, and add an **Architecture** section.
+- Once the frontend is scaffolded, add its lint/type-check/test and `npx playwright test <file> -g "<name>"` to **Commands**, and its part to **Architecture**.
 
 ## Commands
 
@@ -23,6 +23,16 @@ Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.jso
 - Backend format check: `dotnet format backend/Updf.slnx --verify-no-changes`
 - All backend tests: `dotnet test --solution backend/Updf.slnx`
 - One test: `dotnet test --project backend/Updf.Api.Tests --filter-method "*TestName*"` (or `--filter-class "*ClassName"`)
+
+## Architecture
+
+- `backend/Updf.Api`: minimal API. `Program.cs` wires services, health checks and endpoints. PDF code is in `Pdf/`.
+  - `PdfEndpoints`: thin `POST /api/pdf/export` (multipart `file` + `edits` JSON), returns `<name>-edited.pdf`.
+  - `EditDocument`: the edit model from the spec, parsed with System.Text.Json (camelCase enums, required values enforced).
+  - `PdfEditor`: applies edits in memory with PDFsharp. One transform per page maps display coordinates (top-left of the cropped, rotated page) to PDFsharp space, which ignores the MediaBox origin and /Rotate. Covers are drawn before all text on a page.
+  - `NotoFontResolver`: serves `fonts/` (copied into the build output) to PDFsharp. Registered once, globally. Mono italic is simulated.
+- Form uploads stay in memory (`FormOptions.MemoryBufferThreshold`); nothing is written to disk.
+- `backend/Updf.Api.Tests`: xUnit v3. Output PDFs are read back with PdfPig, which reports positions on the displayed page with a bottom-left origin. `TestPdfs` builds fixture PDFs and edits.
 
 ## Tickets
 

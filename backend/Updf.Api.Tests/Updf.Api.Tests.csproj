@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="PdfPig" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
 
