@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = join(__dirname, "..");
@@ -45,12 +45,33 @@ describe.each(Object.entries(themes))("%s theme", (_, colors) => {
   });
 });
 
-it("uses no colours outside the design tokens", () => {
-  const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter(
-    (f) => /^(app|components|lib)\//.test(f) && /\.(tsx?|css)$/.test(f) && !f.endsWith(".test.ts") && !f.endsWith("globals.css"),
-  );
-  const rawColor = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch)\(|\b(bg|text|border|ring|fill|stroke)-(white|black)\b/i;
+// Source files other than the tokens and tests. Only these folders are read, so node_modules and .next are never walked.
+const sources = ["app", "components", "lib"].flatMap((dir) =>
+  readdirSync(join(root, dir), { recursive: true, encoding: "utf8" })
+    .filter((f) => /\.(tsx?|css)$/.test(f) && !f.endsWith(".test.ts") && !f.endsWith("globals.css"))
+    .map((f) => join(dir, f)),
+);
 
-  expect(files.length).toBeGreaterThan(0);
-  expect(files.filter((f) => rawColor.test(readFileSync(join(root, f), "utf8"))).map((f) => relative(root, join(root, f)))).toEqual([]);
+function matches(pattern: RegExp): string[] {
+  return sources.flatMap((f) => [...readFileSync(join(root, f), "utf8").matchAll(pattern)].map((m) => `${f}: ${m[0]}`));
+}
+
+it("reads the source files", () => {
+  expect(sources).toContain(join("app", "layout.tsx"));
+});
+
+it("uses no colours outside the design tokens", () => {
+  expect(matches(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch)\(|\b(bg|text|border|ring|fill|stroke)-(white|black)\b/gi)).toEqual([]);
+});
+
+it("uses only sizes from the type scale", () => {
+  expect(matches(/\btext-\[[^\]]*\d(px|rem|em)\]/g)).toEqual([]);
+});
+
+it("keeps spacing on the 4px grid", () => {
+  expect(matches(/(?<![\w-])-?([pm][xytrblse]?|gap(-[xy])?|space-[xy])-(\d*\.5|px)(?![\w.])/g)).toEqual([]);
+});
+
+it("animates for 150-200 ms", () => {
+  expect(matches(/\bduration-(?!(1[5-9]\d|200)\b)\d+/g)).toEqual([]);
 });

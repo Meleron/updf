@@ -5,4 +5,4 @@
 **/TestResults/
 .git/
 tickets/
-**/.env
+**/.env*

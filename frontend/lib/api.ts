@@ -16,7 +16,7 @@ export async function exportPdf(backendUrl: string, file: File, edits: EditDocum
   form.append("file", file);
   form.append("edits", JSON.stringify(edits));
 
-  const response = await fetch(new URL("/api/pdf/export", backendUrl), { method: "POST", body: form, signal });
+  const response = await fetch(`${backendUrl.replace(/\/$/, "")}/api/pdf/export`, { method: "POST", body: form, signal });
   if (!response.ok) {
     const problem: { code?: string } | null = await response.json().catch(() => null);
     throw new ApiError(response.status, problem?.code ?? "unexpected");

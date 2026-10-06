@@ -27,6 +27,18 @@ describe("exportPdf", () => {
     expect(await pdf.text()).toBe("%PDF-edited");
   });
 
+  it.each([
+    ["http://backend.example:8080/", "http://backend.example:8080/api/pdf/export"],
+    ["https://gateway.example/updf", "https://gateway.example/updf/api/pdf/export"],
+    ["https://gateway.example/updf/", "https://gateway.example/updf/api/pdf/export"],
+  ])("keeps the path of the backend URL %s", async (backendUrl, url) => {
+    const fetch = respond(new Response("%PDF-edited", { status: 200 }));
+
+    await exportPdf(backendUrl, file, edits);
+
+    expect(String(fetch.mock.calls[0][0])).toBe(url);
+  });
+
   it("throws the backend's error code", async () => {
     respond(Response.json({ status: 422, code: "pdf-encrypted" }, { status: 422 }));
 

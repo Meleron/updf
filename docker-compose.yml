@@ -1,13 +1,14 @@
+# Every variable has a default, so an .env from an older checkout still works.
 services:
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Export__AllowedOrigin: ${FRONTEND_ORIGIN:?Set FRONTEND_ORIGIN in .env}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      Export__AllowedOrigin: ${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_PORT:-3000}}
     ports:
-      - "${BACKEND_PORT}:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health/ready"]
       interval: 10s
@@ -20,9 +21,9 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     environment:
-      BACKEND_URL: ${BACKEND_PUBLIC_URL:?Set BACKEND_PUBLIC_URL in .env}
+      BACKEND_URL: ${BACKEND_PUBLIC_URL:-http://localhost:${BACKEND_PORT:-8080}}
     ports:
-      - "${FRONTEND_PORT}:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_healthy

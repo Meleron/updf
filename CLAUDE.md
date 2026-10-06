@@ -17,7 +17,7 @@ updf is a web app for managing, editing and working with PDF files. The MVP is s
 
 Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.json`).
 
-- Stack: `scripts/start.sh` / `scripts/stop.sh` (Linux) or `scripts\start.cmd` / `scripts\stop.cmd` (Windows). Start creates `.env` from `.env.example` if missing, builds, and waits until healthy. Frontend on `http://localhost:3000`, backend on `http://localhost:8080`.
+- Stack: `scripts/start.sh` / `scripts/stop.sh` (Linux) or `scripts\start.cmd` / `scripts\stop.cmd` (Windows). Start creates `.env` from `.env.example` if missing, builds, and waits until healthy. Every compose variable has a default, and the frontend origin and backend URL derive from the ports. Frontend on `http://localhost:3000`, backend on `http://localhost:8080`.
 - Backend build: `dotnet build backend/Updf.slnx`
 - Backend format check: `dotnet format backend/Updf.slnx --verify-no-changes`
 - All backend tests: `dotnet test --solution backend/Updf.slnx`
@@ -40,7 +40,7 @@ Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.jso
   - Styling: the design tokens in `app/globals.css` are the only colours (Tailwind's palette is removed). shadcn/ui components live in `components/ui` and are edited to use the tokens; shadcn's own `accent` hover colour is replaced by `muted`.
   - i18n: next-intl without URL prefixes. `i18n/locale.ts` picks the locale from the `NEXT_LOCALE` cookie, then `Accept-Language`. Messages in `messages/{en,pl}.json`, typed by `global.d.ts`.
   - Theme: next-themes (`class` on `<html>`, system by default, choice in localStorage).
-  - Vitest guards: message key parity, WCAG AA contrast of token pairings, no raw colours outside `globals.css`.
+  - Vitest guards (`app/design.test.ts`, `messages/messages.test.ts`): message key parity, WCAG AA contrast of token pairings, and in `app`, `components` and `lib`: no raw colours, only type-scale sizes, spacing on the 4px grid, 150-200ms animations.
 - `e2e`: Playwright against the compose stack (Chromium for now).
 - `backend/Updf.Api.Tests`: xUnit v3. Use `ApiFactory` (raised rate limit) for integration tests. Output PDFs are read back with PdfPig, which reports positions on the displayed page with a bottom-left origin. `TestPdfs` builds fixture PDFs and edits. Keep theory data small: runners serialize every row (a 25 MB row made a run take 53 s instead of 2 s).
 
