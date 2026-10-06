@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Updf.Api.Tests/Updf.Api.Tests.csproj" />
+  <Project Path="Updf.Api/Updf.Api.csproj" />
+</Solution>

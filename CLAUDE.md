@@ -6,13 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-updf is a web app for managing, editing and working with PDF files. It's pre-implementation: there's no code yet. The MVP is specified in `specs/SPEC-1.md`. Specs live in `specs/` as `SPEC-<n>.md`.
+updf is a web app for managing, editing and working with PDF files. The MVP is specified in `specs/SPEC-1.md`. Specs live in `specs/` as `SPEC-<n>.md`.
 
 ## Stack
 
 - **Decided:** ASP.NET Core Web API (.NET), Next.js with TypeScript, Docker Compose for local running, Azure for future hosting, a local git repo moving to GitHub later, Playwright for end-to-end tests, Next.js App Router, pdf.js (rendering, in the browser), PDFsharp (writing, on the backend), Noto fonts, latest stable versions of everything. No database in the MVP.
 - **Not decided (propose options, let the user choose):** database, auth, Next.js UI library, specific Azure services.
-- Once scaffolded, add **Commands** (compose, `dotnet build`/`test`/`--filter`, frontend lint/type-check/test, `npx playwright test <file> -g "<name>"`) and **Architecture** sections.
+- Once the frontend is scaffolded, add its lint/type-check/test and `npx playwright test <file> -g "<name>"` to **Commands**, and add an **Architecture** section.
+
+## Commands
+
+Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.json`).
+
+- Stack: `scripts/start.sh` / `scripts/stop.sh` (Linux) or `scripts\start.cmd` / `scripts\stop.cmd` (Windows). Start creates `.env` from `.env.example` if missing, builds, and waits until healthy. Backend on `http://localhost:8080`.
+- Backend build: `dotnet build backend/Updf.slnx`
+- Backend format check: `dotnet format backend/Updf.slnx --verify-no-changes`
+- All backend tests: `dotnet test --solution backend/Updf.slnx`
+- One test: `dotnet test --project backend/Updf.Api.Tests --filter-method "*TestName*"` (or `--filter-class "*ClassName"`)
 
 ## Tickets
 
@@ -28,7 +38,7 @@ Requirements live in `tickets/` as Markdown files: `features/` and `bugs/`, each
 
 ## Conventions
 
-- Use Conventional Commits and feature branches. Commit only when asked. Add a GitHub remote and Actions only when asked.
+- Use Conventional Commits and feature branches. Never commit until the user explicitly says so, even when a ticket, plan or acceptance criterion calls for a commit. Add a GitHub remote and Actions only when asked.
 - Before calling work done, run lint, type-check and the relevant tests for the side(s) you touched.
 - **.NET:** nullable reference types and `TreatWarningsAsErrors`, central package management, thin endpoints with logic in services, `IOptions<T>` validated on startup, `ProblemDetails` errors, async I/O with a `CancellationToken` passed through.
 - **Next.js:** strict TypeScript, one typed API client (ideally generated from OpenAPI), and never put secrets in `NEXT_PUBLIC_*` variables.
