@@ -26,13 +26,15 @@ Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.jso
 
 ## Architecture
 
-- `backend/Updf.Api`: minimal API. `Program.cs` wires services, health checks and endpoints. PDF code is in `Pdf/`.
-  - `PdfEndpoints`: thin `POST /api/pdf/export` (multipart `file` + `edits` JSON), returns `<name>-edited.pdf`.
+- `backend/Updf.Api`: minimal API. `Program.cs` wires services, middleware and endpoints. PDF code is in `Pdf/`.
+  - `PdfEndpoints`: `AddPdfExport` (options, Kestrel body limit, in-memory forms, CORS, rate limit) and the thin `POST /api/pdf/export`, which reads the form itself so every failure gets an error code.
+  - `PdfExporter`: the pipeline. `PdfValidator` checks and opens the file, then `EditValidator` checks the edits, then `PdfEditor` applies them within the timeout.
   - `EditDocument`: the edit model from the spec, parsed with System.Text.Json (camelCase enums, required values enforced).
   - `PdfEditor`: applies edits in memory with PDFsharp. One transform per page maps display coordinates (top-left of the cropped, rotated page) to PDFsharp space, which ignores the MediaBox origin and /Rotate. Covers are drawn before all text on a page.
-  - `NotoFontResolver`: serves `fonts/` (copied into the build output) to PDFsharp. Registered once, globally. Mono italic is simulated.
-- Form uploads stay in memory (`FormOptions.MemoryBufferThreshold`); nothing is written to disk.
-- `backend/Updf.Api.Tests`: xUnit v3. Output PDFs are read back with PdfPig, which reports positions on the displayed page with a bottom-left origin. `TestPdfs` builds fixture PDFs and edits.
+  - `NotoFontResolver`: serves `fonts/` (copied into the build output) to PDFsharp. Registered once, globally. Mono italic is simulated. `FontCoverage` reads each face's cmap for the supported-characters check.
+  - Errors: throw `ExportException` (status + stable `code`). `ApiExceptionHandler` turns every error into `ProblemDetails` with `code` and `requestId`, and logs only unexpected ones.
+  - `ExportOptions` (`Export` section, env `Export__*`): file size, pages, timeout, rate, allowed origin. Validated on start.
+- `backend/Updf.Api.Tests`: xUnit v3. Use `ApiFactory` (raised rate limit) for integration tests. Output PDFs are read back with PdfPig, which reports positions on the displayed page with a bottom-left origin. `TestPdfs` builds fixture PDFs and edits. Keep theory data small: runners serialize every row (a 25 MB row made a run take 53 s instead of 2 s).
 
 ## Tickets
 

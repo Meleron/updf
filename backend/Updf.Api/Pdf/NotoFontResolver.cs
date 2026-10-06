@@ -45,4 +45,11 @@ public static class FontFamilies
     public const string Sans = "Noto Sans";
     public const string Serif = "Noto Serif";
     public const string Mono = "Noto Sans Mono";
+
+    public static string For(FontKind font) => font switch
+    {
+        FontKind.Serif => Serif,
+        FontKind.Mono => Mono,
+        _ => Sans,
+    };
 }

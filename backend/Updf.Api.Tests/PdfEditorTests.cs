@@ -162,7 +162,7 @@ public class PdfEditorTests
     [Fact]
     public void Covers_are_drawn_under_all_text_on_the_page()
     {
-        var pdf = _editor.Apply(new MemoryStream(Blank(1)), Edits(
+        var pdf = _editor.Apply(Open(Blank(1)), Edits(
             Edit(0, 40, 60, ["First"]),
             Edit(0, 300, 60, ["Second"], cover: new Cover(30, 50, 200, 30, "#FFFFFF"))), TestContext.Current.CancellationToken);
 
@@ -175,7 +175,7 @@ public class PdfEditorTests
     public void Polish_cyrillic_and_greek_text_survives_and_fonts_are_embedded()
     {
         string[] lines = ["Zażółć gęślą jaźń ZAŻÓŁĆ", "Съешь же ещё этих булок", "Ξεσκεπάζω την ψυχοφθόρα"];
-        var pdf = _editor.Apply(new MemoryStream(Blank(1)), Edits(
+        var pdf = _editor.Apply(Open(Blank(1)), Edits(
             Edit(0, 40, 60, lines),
             Edit(0, 40, 200, lines, Style(FontKind.Serif, italic: true)),
             Edit(0, 40, 340, lines, Style(FontKind.Mono, bold: true))), TestContext.Current.CancellationToken);
@@ -197,7 +197,9 @@ public class PdfEditorTests
     }
 
     private PigDocument Export(byte[] pdf, params TextEdit[] edits) =>
-        PigDocument.Open(_editor.Apply(new MemoryStream(pdf), Edits(edits), TestContext.Current.CancellationToken));
+        PigDocument.Open(_editor.Apply(Open(pdf), Edits(edits), TestContext.Current.CancellationToken));
+
+    private static PdfSharp.Pdf.PdfDocument Open(byte[] pdf) => PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify);
 
     // PdfPig reports positions on the displayed page with the origin at the bottom left.
     private static (double X, double Y) Display(Page page, UglyToad.PdfPig.Core.PdfPoint point) => (point.X, page.Height - point.Y);

@@ -1,23 +1,14 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Updf.Api.Pdf;
 using static Updf.Api.Tests.TestPdfs;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace Updf.Api.Tests;
 
-public class ExportEndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class ExportEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
-
     [Theory]
     [InlineData("report.pdf", "report-edited.pdf")]
     [InlineData("Raport roczny – zażółć gęślą jaźń.pdf", "Raport roczny – zażółć gęślą jaźń-edited.pdf")]
@@ -71,7 +62,7 @@ public class ExportEndpointTests(WebApplicationFactory<Program> factory) : IClas
     public async Task Uploads_are_processed_without_writing_temp_files()
     {
         var ct = TestContext.Current.CancellationToken;
-        var pdf = Blank(2000);
+        var pdf = Large(256 * 1024);
         Assert.True(pdf.Length > 64 * 1024, "The upload must exceed ASP.NET's default in-memory buffer of 64 KB.");
 
         var tempDirectory = Path.GetTempPath();
@@ -103,16 +94,6 @@ public class ExportEndpointTests(WebApplicationFactory<Program> factory) : IClas
         Assert.DoesNotContain(created, name => name.EndsWith(".tmp", StringComparison.Ordinal));
     }
 
-    private async Task<HttpResponseMessage> Export(byte[] pdf, string fileName, EditDocument edits)
-    {
-        // Browsers send the file name as raw UTF-8 in the multipart headers.
-        var file = new ByteArrayContent(pdf);
-        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-        file.Headers.TryAddWithoutValidation("Content-Disposition", $"form-data; name=\"file\"; filename=\"{fileName}\"");
-        using var content = new MultipartFormDataContent { HeaderEncodingSelector = (_, _) => Encoding.UTF8 };
-        content.Add(file);
-        content.Add(new StringContent(JsonSerializer.Serialize(edits, JsonOptions)), "edits");
-
-        return await factory.CreateClient().PostAsync("/api/pdf/export", content, TestContext.Current.CancellationToken);
-    }
+    private Task<HttpResponseMessage> Export(byte[] pdf, string fileName, EditDocument edits) =>
+        factory.CreateClient().PostExport(pdf, ToJson(edits), fileName);
 }

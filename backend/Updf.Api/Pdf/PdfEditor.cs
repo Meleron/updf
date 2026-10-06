@@ -2,7 +2,6 @@ using System.Globalization;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
-using PdfSharp.Pdf.IO;
 
 namespace Updf.Api.Pdf;
 
@@ -14,10 +13,8 @@ public sealed class PdfEditor
     // PDFsharp's font resolver is global and can be set only once. A static constructor runs exactly once per process.
     static PdfEditor() => GlobalFontSettings.FontResolver = new NotoFontResolver();
 
-    public byte[] Apply(Stream pdf, EditDocument edits, CancellationToken cancellationToken)
+    public byte[] Apply(PdfDocument document, EditDocument edits, CancellationToken cancellationToken)
     {
-        using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.Modify);
-
         foreach (var pageEdits in edits.Edits.GroupBy(e => e.Page))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -43,7 +40,7 @@ public sealed class PdfEditor
     private static void DrawText(XGraphics gfx, TextEdit edit)
     {
         var style = edit.Style;
-        var font = new XFont(Family(style.Font), style.Size, FontStyle(style), FontOptions);
+        var font = new XFont(FontFamilies.For(style.Font), style.Size, FontStyle(style), FontOptions);
         var brush = new XSolidBrush(ToColor(style.Color));
         var widths = edit.Lines.Select(line => gfx.MeasureString(line, font).Width).ToList();
         var boxWidth = widths.DefaultIfEmpty(0).Max();
@@ -92,13 +89,6 @@ public sealed class PdfEditor
             _ => new XMatrix(1, 0, 0, 1, left, drawingHeight - top),
         };
     }
-
-    private static string Family(FontKind font) => font switch
-    {
-        FontKind.Serif => FontFamilies.Serif,
-        FontKind.Mono => FontFamilies.Mono,
-        _ => FontFamilies.Sans,
-    };
 
     private static XFontStyleEx FontStyle(TextStyle style) =>
         (style.Bold ? XFontStyleEx.Bold : XFontStyleEx.Regular)
