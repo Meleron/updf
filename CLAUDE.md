@@ -10,19 +10,20 @@ updf is a web app for managing, editing and working with PDF files. The MVP is s
 
 ## Stack
 
-- **Decided:** ASP.NET Core Web API (.NET), Next.js with TypeScript, Docker Compose for local running, Azure for future hosting, a local git repo moving to GitHub later, Playwright for end-to-end tests, Next.js App Router, pdf.js (rendering, in the browser), PDFsharp (writing, on the backend), Noto fonts, latest stable versions of everything. No database in the MVP.
-- **Not decided (propose options, let the user choose):** database, auth, Next.js UI library, specific Azure services.
-- Once the frontend is scaffolded, add its lint/type-check/test and `npx playwright test <file> -g "<name>"` to **Commands**, and its part to **Architecture**.
+- **Decided:** ASP.NET Core Web API (.NET), Next.js with TypeScript, Docker Compose for local running, Azure for future hosting, a local git repo moving to GitHub later, Playwright for end-to-end tests, Next.js App Router, pdf.js (rendering, in the browser), PDFsharp (writing, on the backend), Noto fonts, shadcn/ui (Radix) on Tailwind v4, next-intl, next-themes, Vitest, latest stable versions of everything. No database in the MVP.
+- **Not decided (propose options, let the user choose):** database, auth, specific Azure services.
 
 ## Commands
 
 Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.json`).
 
-- Stack: `scripts/start.sh` / `scripts/stop.sh` (Linux) or `scripts\start.cmd` / `scripts\stop.cmd` (Windows). Start creates `.env` from `.env.example` if missing, builds, and waits until healthy. Backend on `http://localhost:8080`.
+- Stack: `scripts/start.sh` / `scripts/stop.sh` (Linux) or `scripts\start.cmd` / `scripts\stop.cmd` (Windows). Start creates `.env` from `.env.example` if missing, builds, and waits until healthy. Frontend on `http://localhost:3000`, backend on `http://localhost:8080`.
 - Backend build: `dotnet build backend/Updf.slnx`
 - Backend format check: `dotnet format backend/Updf.slnx --verify-no-changes`
 - All backend tests: `dotnet test --solution backend/Updf.slnx`
 - One test: `dotnet test --project backend/Updf.Api.Tests --filter-method "*TestName*"` (or `--filter-class "*ClassName"`)
+- Frontend (in `frontend/`, after `npm ci`): `npm run lint`, `npm run typecheck`, `npm test` (Vitest); one test: `npx vitest run <file> -t "<name>"`. Dev server: `BACKEND_URL=http://localhost:8080 npm run dev`.
+- End-to-end (in `e2e/`, after `npm ci` and `npx playwright install chromium`, with the stack running): `npx playwright test`; one test: `npx playwright test <file> -g "<name>"`. `BASE_URL` overrides `http://localhost:3000`.
 
 ## Architecture
 
@@ -34,6 +35,13 @@ Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.jso
   - `NotoFontResolver`: serves `fonts/` (copied into the build output) to PDFsharp. Registered once, globally. Mono italic is simulated. `FontCoverage` reads each face's cmap for the supported-characters check.
   - Errors: throw `ExportException` (status + stable `code`). `ApiExceptionHandler` turns every error into `ProblemDetails` with `code` and `requestId`, and logs only unexpected ones.
   - `ExportOptions` (`Export` section, env `Export__*`): file size, pages, timeout, rate, allowed origin. Validated on start.
+- `frontend`: Next.js App Router, rendered per request.
+  - The browser calls the backend directly (`lib/api.ts`). The layout reads `BACKEND_URL` at request time and passes it down with `BackendUrlProvider`, so one image works everywhere.
+  - Styling: the design tokens in `app/globals.css` are the only colours (Tailwind's palette is removed). shadcn/ui components live in `components/ui` and are edited to use the tokens; shadcn's own `accent` hover colour is replaced by `muted`.
+  - i18n: next-intl without URL prefixes. `i18n/locale.ts` picks the locale from the `NEXT_LOCALE` cookie, then `Accept-Language`. Messages in `messages/{en,pl}.json`, typed by `global.d.ts`.
+  - Theme: next-themes (`class` on `<html>`, system by default, choice in localStorage).
+  - Vitest guards: message key parity, WCAG AA contrast of token pairings, no raw colours outside `globals.css`.
+- `e2e`: Playwright against the compose stack (Chromium for now).
 - `backend/Updf.Api.Tests`: xUnit v3. Use `ApiFactory` (raised rate limit) for integration tests. Output PDFs are read back with PdfPig, which reports positions on the displayed page with a bottom-left origin. `TestPdfs` builds fixture PDFs and edits. Keep theory data small: runners serialize every row (a 25 MB row made a run take 53 s instead of 2 s).
 
 ## Tickets

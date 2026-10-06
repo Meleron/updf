@@ -14,3 +14,21 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      BACKEND_URL: ${BACKEND_PUBLIC_URL:?Set BACKEND_PUBLIC_URL in .env}
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

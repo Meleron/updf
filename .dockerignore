@@ -4,5 +4,5 @@
 **/.next/
 **/TestResults/
 .git/
-.env
 tickets/
+**/.env

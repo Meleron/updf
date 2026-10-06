@@ -1,0 +1,18 @@
+{
+  "App": {
+    "name": "updf",
+    "description": "Edytuj tekst w plikach PDF."
+  },
+  "Header": {
+    "language": "Język",
+    "toggleTheme": "Przełącz motyw"
+  },
+  "Languages": {
+    "en": "English",
+    "pl": "Polski"
+  },
+  "Home": {
+    "title": "Edytuj tekst w pliku PDF",
+    "description": "Dodaj nowy tekst lub zastąp istniejące wiersze, a potem pobierz edytowany plik. Nic nie jest przechowywane na naszych serwerach."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "App": {
+    "name": "updf",
+    "description": "Edit the text in your PDF files."
+  },
+  "Header": {
+    "language": "Language",
+    "toggleTheme": "Toggle theme"
+  },
+  "Languages": {
+    "en": "English",
+    "pl": "Polski"
+  },
+  "Home": {
+    "title": "Edit the text in your PDF",
+    "description": "Add new text or replace existing lines, then download the edited file. Nothing is stored on our servers."
+  }
+}
