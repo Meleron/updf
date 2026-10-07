@@ -80,7 +80,7 @@ test("the thumbnail panel can be hidden and shown", async ({ page }) => {
 
 test("zoom fits the page width by default and stays within 50% to 200%", async ({ page }) => {
   await openInEditor(page, "simple.pdf");
-  const availableWidth = await page.getByRole("main").evaluate((main) => main.clientWidth - 48);
+  const availableWidth = await page.getByTestId("pages").evaluate((pages) => pages.clientWidth - 48);
   await expectWidth(page, 1, 1, availableWidth);
 
   const zoomIn = page.getByRole("button", { name: "Zoom in" });
@@ -215,7 +215,7 @@ test.describe("on a phone", () => {
     await expect(thumbnails(page)).toBeHidden();
     await expect(pageImage(page, 1, 100)).toHaveAttribute("aria-busy", "false");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    expect(await page.getByRole("main").evaluate((main) => main.scrollWidth <= main.clientWidth)).toBe(true);
+    expect(await page.getByTestId("pages").evaluate((pages) => pages.scrollWidth <= pages.clientWidth)).toBe(true);
   });
 
   test("a thumbnail opened from the collapsed panel shows its page and closes the panel", async ({ page }) => {

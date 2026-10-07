@@ -10,15 +10,40 @@ import { cssFontFamilies, notoAscent, notoLineHeight } from "@/lib/fonts";
 import { unsupportedCharacters } from "@/lib/formatting";
 import { cn } from "@/lib/utils";
 
+/** The id of the element describing how to use a text box from the keyboard (rendered by the editor). */
+export const textBoxHelpId = "text-box-help";
+
+/** The id of a text box's element, to focus it. */
+export function textBoxId(editId: string): string {
+  return `text-box-${editId}`;
+}
+
 type Props = {
   edit: TextEdit;
   zoom: number;
+  /** The page's displayed size in points: the box can't be moved off it. */
+  pageSize: { width: number; height: number };
+  selected: boolean;
   editing: boolean;
   /** The textarea while editing, so the formatting bar can put the focus back. */
   inputRef: React.RefObject<HTMLTextAreaElement | null> | null;
+  onSelect: () => void;
+  onEdit: () => void;
   onChange: (lines: string[]) => void;
+  onMove: (x: number, y: number) => void;
+  /** Ends typing. The box stays selected. */
   onFinish: () => void;
+  /** Focus has gone elsewhere. */
+  onDeselect: () => void;
+  /** Esc on the selected box: move the focus away. */
+  onLeave: () => void;
+  onDelete: () => void;
 };
+
+/** The arrow keys move a selected box by a point, or by ten with Shift. */
+const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+type Drag = { clientX: number; clientY: number; wasSelected: boolean; to: { x: number; y: number } | null };
 
 /**
  * A text box drawn the way the backend draws it, so the download matches the screen: the same fonts, the fonts' own
@@ -29,8 +54,12 @@ type Props = {
  * PDF's. So the box measures where its first baseline lands and moves by the difference.
  *
  * Characters the PDF fonts can't show get a warning under the box, since the export would refuse them.
+ *
+ * A box is selected by focusing it (a click or Tab), and edited by clicking it again or with Enter. A selected box is
+ * moved by dragging or with the arrow keys, and stays on its page. A drag becomes one move when it ends.
  */
-export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: Props) {
+export function TextBox(props: Props) {
+  const { edit, zoom, pageSize, selected, editing, inputRef, onSelect, onEdit, onChange, onMove, onFinish, onDeselect, onLeave, onDelete } = props;
   const t = useTranslations("Editor");
   const warningId = useId();
   const unsupported = unsupportedCharacters(edit.lines, edit.style);
@@ -38,7 +67,11 @@ export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: P
   const text = edit.lines.join("\n");
   const fontSize = toPixels(style.size, zoom);
   const baseline = useRef<HTMLSpanElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const drag = useRef<Drag | null>(null);
+  const [dragged, setDragged] = useState<{ x: number; y: number } | null>(null);
   const [shift, setShift] = useState(0);
+  const position = dragged ?? edit;
 
   // An edit starts with the cursor after the text, which matters for a replacement.
   useLayoutEffect(() => {
@@ -83,11 +116,97 @@ export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: P
     whiteSpace: "pre",
   };
 
+  /** A position for the box's top-left corner, kept so the whole box stays on the page where it fits. */
+  function onPage(x: number, y: number) {
+    const scale = toPixels(1, zoom);
+    const { offsetWidth, offsetHeight } = root.current!;
+    return {
+      x: Math.min(Math.max(x, 0), Math.max(0, pageSize.width - offsetWidth / scale)),
+      y: Math.min(Math.max(y, 0), Math.max(0, pageSize.height - offsetHeight / scale)),
+    };
+  }
+
+  function keyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    const arrow = arrows[event.key];
+    if (arrow) {
+      event.preventDefault();
+      const step = event.shiftKey ? 10 : 1;
+      const to = onPage(edit.x + arrow[0] * step, edit.y + arrow[1] * step);
+      onMove(to.x, to.y);
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      onDelete();
+    } else if (event.key === "Enter") {
+      // Otherwise the Enter would go on to the new textarea as a new line.
+      event.preventDefault();
+      onEdit();
+    } else if (event.key === "Escape") {
+      onLeave();
+    }
+  }
+
+  function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (editing || event.button !== 0) {
+      return;
+    }
+    drag.current = { clientX: event.clientX, clientY: event.clientY, wasSelected: selected, to: null };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function pointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const current = drag.current;
+    const [dx, dy] = current ? [event.clientX - current.clientX, event.clientY - current.clientY] : [0, 0];
+    // A few pixels of movement are still a click.
+    if (!current || (!current.to && Math.hypot(dx, dy) < 4)) {
+      return;
+    }
+    const scale = toPixels(1, zoom);
+    current.to = onPage(edit.x + dx / scale, edit.y + dy / scale);
+    setDragged(current.to);
+  }
+
+  function pointerUp() {
+    const current = drag.current;
+    drag.current = null;
+    if (current?.to) {
+      onMove(current.to.x, current.to.y);
+      setDragged(null);
+    } else if (current?.wasSelected) {
+      onEdit();
+    }
+  }
+
   return (
     <div
+      {...editUi}
+      ref={root}
+      id={textBoxId(edit.id)}
+      data-text-box=""
       data-testid="text-box"
-      className={cn("absolute min-w-1", editing && "outline-1 outline-offset-2 outline-accent")}
-      style={{ left: toPixels(edit.x, zoom), top: toPixels(edit.y, zoom) + shift }}
+      role={editing ? undefined : "button"}
+      aria-roledescription={editing ? undefined : t("textBoxRole")}
+      aria-describedby={editing ? undefined : [textBoxHelpId, unsupported.length > 0 && warningId].filter(Boolean).join(" ")}
+      tabIndex={editing ? -1 : 0}
+      onFocus={(event) => event.target === event.currentTarget && onSelect()}
+      onBlur={(event) => leavesEdit(event.relatedTarget) && onDeselect()}
+      onKeyDown={keyDown}
+      onPointerDown={pointerDown}
+      onPointerMove={pointerMove}
+      onPointerUp={pointerUp}
+      onPointerCancel={() => {
+        drag.current = null;
+        setDragged(null);
+      }}
+      className={cn(
+        "absolute min-w-1 outline-accent outline-offset-2 focus-visible:outline-2",
+        selected && "outline-1",
+        !editing && "cursor-default select-none",
+        selected && !editing && "cursor-move touch-none",
+      )}
+      style={{ left: toPixels(position.x, zoom), top: toPixels(position.y, zoom) + shift }}
     >
       {/* The padding keeps the caret inside the box, so the textarea never scrolls. An empty last line still takes up a
           line, as it does in the textarea. */}
@@ -98,7 +217,6 @@ export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: P
       </div>
       {editing && (
         <textarea
-          {...editUi}
           ref={inputRef}
           aria-label={t("textBox")}
           aria-describedby={unsupported.length > 0 ? warningId : undefined}
@@ -107,8 +225,18 @@ export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: P
           spellCheck={false}
           value={text}
           onChange={(e) => onChange(e.target.value.split("\n"))}
-          onBlur={(e) => leavesEdit(e.relatedTarget) && onFinish()}
-          onKeyDown={(e) => e.key === "Escape" && e.currentTarget.blur()}
+          onKeyDown={(e) => {
+            // Esc ends typing, and the box stays selected with the focus on it. An empty box is discarded, so the focus
+            // goes to the pages instead.
+            if (e.key === "Escape") {
+              if (text.trim() === "") {
+                onLeave();
+              } else {
+                root.current!.focus();
+              }
+              onFinish();
+            }
+          }}
           className="absolute inset-0 resize-none overflow-hidden bg-transparent pr-1 outline-none"
           style={font}
         />

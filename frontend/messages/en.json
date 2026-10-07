@@ -48,7 +48,9 @@
     "unsupportedCharacters": "The PDF fonts can't show: {characters}",
     "noText": "No text to replace on this page. Use Add text to write on it.",
     "replaceHint": "Replaced text is hidden, not removed. Don't use this to remove sensitive information.",
-    "gotIt": "Got it"
+    "gotIt": "Got it",
+    "textBoxRole": "text box",
+    "textBoxHelp": "Enter edits the text. The arrow keys move the box, by more with Shift. Delete removes it."
   },
   "Formatting": {
     "label": "Formatting",

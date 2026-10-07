@@ -48,7 +48,9 @@
     "unsupportedCharacters": "Czcionki PDF nie obsługują znaków: {characters}",
     "noText": "Na tej stronie nie ma tekstu do zastąpienia. Użyj Dodaj tekst, aby na niej pisać.",
     "replaceHint": "Zastąpiony tekst jest ukryty, a nie usunięty. Nie używaj tego do usuwania poufnych informacji.",
-    "gotIt": "Rozumiem"
+    "gotIt": "Rozumiem",
+    "textBoxRole": "pole tekstowe",
+    "textBoxHelp": "Enter edytuje tekst. Strzałki przesuwają pole, z Shift o więcej. Delete je usuwa."
   },
   "Formatting": {
     "label": "Formatowanie",

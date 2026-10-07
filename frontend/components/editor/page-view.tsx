@@ -26,10 +26,14 @@ type Props = {
   tool: Tool;
   /** The edits on this page. */
   edits: TextEdit[];
-  editing: TextEdit | undefined;
+  selected: string | null;
+  editing: string | null;
   editingInput: React.RefObject<HTMLTextAreaElement | null>;
   dispatch: React.Dispatch<EditorAction>;
   onReplace: () => void;
+  onDelete: (id: string) => void;
+  /** Moves the focus away from the selected box. */
+  onLeave: () => void;
   ref: React.Ref<HTMLDivElement>;
 };
 
@@ -39,7 +43,8 @@ type Props = {
  * colour from the drawn page, which holds only the PDF (edits are separate elements above it).
  */
 export function PageView(props: Props) {
-  const { index, page, size, zoom, root, label, tool, edits, editing, editingInput, dispatch, onReplace, ref } = props;
+  const { index, page, size, zoom, root, label, tool, edits, selected, editing, editingInput, dispatch, onReplace, onDelete, onLeave, ref } =
+    props;
   const t = useTranslations("Editor");
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const reading = useRef<Promise<void> | null>(null);
@@ -89,6 +94,10 @@ export function PageView(props: Props) {
   }
 
   function click(event: React.MouseEvent<HTMLDivElement>) {
+    // Text boxes handle their own clicks.
+    if (event.target instanceof Element && event.target.closest("[data-text-box]")) {
+      return;
+    }
     if (tool === "text") {
       const { x, y } = pointOnPage(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect(), zoom);
       dispatch({ type: "addText", id: crypto.randomUUID(), page: index, x, y });
@@ -152,10 +161,18 @@ export function PageView(props: Props) {
           key={edit.id}
           edit={edit}
           zoom={zoom}
-          editing={edit === editing}
-          inputRef={edit === editing ? editingInput : null}
+          pageSize={size}
+          selected={edit.id === selected}
+          editing={edit.id === editing}
+          inputRef={edit.id === editing ? editingInput : null}
+          onSelect={() => dispatch({ type: "select", id: edit.id })}
+          onEdit={() => dispatch({ type: "edit", id: edit.id })}
           onChange={(lines) => dispatch({ type: "changeText", id: edit.id, lines })}
+          onMove={(x, y) => dispatch({ type: "move", id: edit.id, x, y })}
           onFinish={() => dispatch({ type: "finishEditing" })}
+          onDeselect={() => dispatch({ type: "deselect" })}
+          onLeave={onLeave}
+          onDelete={() => onDelete(edit.id)}
         />
       ))}
     </div>

@@ -9,6 +9,7 @@ import { FormattingBar } from "@/components/editor/formatting-bar";
 import { editUi } from "@/components/editor/edit-focus";
 import { PageView } from "@/components/editor/page-view";
 import { PdfPage } from "@/components/editor/pdf-page";
+import { textBoxHelpId, textBoxId } from "@/components/editor/text-box";
 import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
 import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
@@ -86,7 +87,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [thumbnailsOpen, setThumbnailsOpen] = useState(() => window.matchMedia(wideScreen).matches);
   const [currentPage, setCurrentPage] = useState(0);
   const [state, dispatch] = useReducer(editorReducer, initialState);
-  const editing = state.edits.find((edit) => edit.id === state.editing);
+  const selected = state.edits.find((edit) => edit.id === state.selected);
   const editingInput = useRef<HTMLTextAreaElement>(null);
   const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
@@ -138,6 +139,24 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   function updateCurrentPage() {
     const tops = pageElements.current.map((element) => element.offsetTop);
     setCurrentPage(pageInView(tops, { top: scroller!.scrollTop, height: scroller!.clientHeight, scrollHeight: scroller!.scrollHeight }));
+  }
+
+  /** Moves the focus off the selected box to the pages, which deselects it. */
+  function leaveBox() {
+    scroller?.focus();
+  }
+
+  /** Deletes a box, and moves the focus to the next box, or the one before, or the pages. */
+  function deleteBox(id: string) {
+    const boxes = [...document.querySelectorAll<HTMLElement>("[data-text-box]")];
+    const index = boxes.findIndex((box) => box.id === textBoxId(id));
+    const next = boxes[index + 1] ?? boxes[index - 1];
+    dispatch({ type: "delete", id });
+    if (next) {
+      next.focus();
+    } else {
+      leaveBox();
+    }
   }
 
   // Shown after the first replacement in a browser session.
@@ -199,13 +218,20 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
             ))}
           </ol>
         </nav>
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          {/* A stable scrollbar gutter keeps fit width from changing as a scrollbar comes and goes. */}
-          <main
+        {/* The pages, with the formatting bar and notices floating over them. */}
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* A stable scrollbar gutter keeps fit width from changing as a scrollbar comes and goes. Focusable from code
+              only, so Esc and deleting the last box have somewhere to put the focus. */}
+          <div
             ref={setScroller}
+            data-testid="pages"
+            tabIndex={-1}
             onScroll={updateCurrentPage}
-            className="relative min-h-0 flex-1 overflow-auto bg-canvas [scrollbar-gutter:stable]"
+            className="relative min-h-0 flex-1 overflow-auto bg-canvas outline-none [scrollbar-gutter:stable]"
           >
+            <p id={textBoxHelpId} hidden>
+              {t("textBoxHelp")}
+            </p>
             {availableWidth > 0 && (
               <div className="mx-auto flex w-max min-w-full flex-col items-center gap-4 p-6">
                 {pages.map((page, i) => (
@@ -222,26 +248,30 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                     label={t("pageOf", { number: i + 1, total: pages.length })}
                     tool={state.tool}
                     edits={state.edits.filter((edit) => edit.page === i)}
-                    editing={editing}
+                    selected={state.selected}
+                    editing={state.editing}
                     editingInput={editingInput}
                     dispatch={dispatch}
                     onReplace={showReplaceHint}
+                    onDelete={deleteBox}
+                    onLeave={leaveBox}
                   />
                 ))}
               </div>
             )}
-          </main>
+          </div>
           {/* Floats over the top of the pages, so they don't move when it appears. After the pages in the tab order, so
               Tab goes from the text box to the bar. */}
-          {editing && (
+          {selected && (
             <div className="pointer-events-none absolute inset-x-4 top-3 z-10 flex justify-center">
               <FormattingBar
-                key={editing.id}
-                style={editing.style}
+                key={selected.id}
+                style={selected.style}
                 onStyle={(style) => dispatch({ type: "setStyle", style })}
-                onReturn={() => editingInput.current?.focus()}
-                onFinish={() => dispatch({ type: "finishEditing" })}
-                onDelete={() => dispatch({ type: "delete", id: editing.id })}
+                onReturn={() => (editingInput.current ?? document.getElementById(textBoxId(selected.id)))?.focus()}
+                onDeselect={() => dispatch({ type: "deselect" })}
+                onLeave={leaveBox}
+                onDelete={() => deleteBox(selected.id)}
               />
             </div>
           )}
@@ -262,7 +292,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
               </div>
             </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

@@ -54,7 +54,7 @@ async function format(page: Page, style: Partial<TextStyle>) {
   }
 }
 
-test("the formatting bar shows only while a text box is being edited", async ({ page }) => {
+test("the formatting bar shows only while a text box is selected", async ({ page }) => {
   await openAt100Percent(page);
   await expect(bar(page)).toBeHidden();
 
@@ -64,6 +64,11 @@ test("the formatting bar shows only while a text box is being edited", async ({ 
   await expect(sizeField(page)).toHaveValue("12");
 
   await page.keyboard.type("Done");
+  // Esc ends typing, and the box stays selected.
+  await page.keyboard.press("Escape");
+  await expect(textBoxInput(page)).toBeHidden();
+  await expect(bar(page)).toBeVisible();
+
   await page.keyboard.press("Escape");
   await expect(bar(page)).toBeHidden();
 });

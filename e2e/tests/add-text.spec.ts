@@ -70,7 +70,7 @@ test("adds multi-line Polish text where the page is clicked, in Noto with its li
   await expect(tool(page, "Select")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
 
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Text box" })).toHaveCount(0);
   const box = page.getByTestId("text-box");
   await expect(box).toHaveText("Zażółć gęślą jaźń\nPchnąć w tę łódź jeża", { useInnerText: true });
   const offset = await offsetOnPage(page);
@@ -120,7 +120,7 @@ test("clicking outside finishes the edit without adding another box", async ({ p
 
   await clickPage(page, 300, 400);
 
-  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Text box" })).toHaveCount(0);
   await expect(page.getByTestId("text-box")).toHaveCount(1);
   await expect(page.getByTestId("text-box")).toHaveText("Finished");
 });

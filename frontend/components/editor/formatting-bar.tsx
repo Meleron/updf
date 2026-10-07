@@ -24,7 +24,10 @@ type Props = {
   onStyle: (style: Partial<TextStyle>) => void;
   /** Puts the focus back in the text box, so typing goes on. */
   onReturn: () => void;
-  onFinish: () => void;
+  /** Focus has gone elsewhere. */
+  onDeselect: () => void;
+  /** Esc: move the focus away. */
+  onLeave: () => void;
   onDelete: () => void;
 };
 
@@ -40,10 +43,10 @@ function Separator() {
 }
 
 /**
- * Formats the text box being edited. The bar, its menus and the text box form one edit: focus moves between them
- * freely, and the edit finishes when it goes anywhere else or on Esc.
+ * Formats the selected text box. The bar, its menus and the text box form one selection: focus moves between them
+ * freely, and the box is deselected when it goes anywhere else or on Esc.
  */
-export function FormattingBar({ style, onStyle, onReturn, onFinish, onDelete }: Props) {
+export function FormattingBar({ style, onStyle, onReturn, onDeselect, onLeave, onDelete }: Props) {
   const t = useTranslations("Formatting");
   const customColor = useRef<HTMLInputElement>(null);
   const pickingCustomColor = useRef(false);
@@ -73,9 +76,9 @@ export function FormattingBar({ style, onStyle, onReturn, onFinish, onDelete }: 
           event.preventDefault();
         }
       }}
-      onBlur={(event) => leavesEdit(event.relatedTarget) && onFinish()}
+      onBlur={(event) => leavesEdit(event.relatedTarget) && onDeselect()}
       // Open menus handle Esc themselves, and mark it handled.
-      onKeyDown={(event) => event.key === "Escape" && !event.defaultPrevented && onFinish()}
+      onKeyDown={(event) => event.key === "Escape" && !event.defaultPrevented && onLeave()}
       className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border bg-surface p-1 shadow-lg"
     >
       <DropdownMenu>
