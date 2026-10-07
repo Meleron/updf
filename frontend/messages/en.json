@@ -40,7 +40,44 @@
     "zoomOut": "Zoom out",
     "fitWidth": "Fit width",
     "zoomLevel": "Zoom: {percent}",
-    "openAnother": "Open another PDF"
+    "openAnother": "Open another PDF",
+    "tools": "Tools",
+    "selectTool": "Select",
+    "addText": "Add text",
+    "textBox": "Text box",
+    "unsupportedCharacters": "The PDF fonts can't show: {characters}"
+  },
+  "Formatting": {
+    "label": "Formatting",
+    "font": "Font: {font}",
+    "fonts": {
+      "sans": "Sans",
+      "serif": "Serif",
+      "mono": "Mono"
+    },
+    "size": "Font size in points",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "color": "Colour: {color}",
+    "colors": {
+      "black": "Black",
+      "gray": "Grey",
+      "red": "Red",
+      "orange": "Orange",
+      "green": "Green",
+      "blue": "Blue",
+      "purple": "Purple",
+      "white": "White"
+    },
+    "customColor": "Custom colour…",
+    "customColorValue": "custom ({value})",
+    "alignment": "Alignment",
+    "align": {
+      "left": "Align left",
+      "center": "Centre",
+      "right": "Align right"
+    }
   },
   "NotFound": {
     "title": "Page not found",

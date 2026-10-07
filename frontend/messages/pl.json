@@ -40,7 +40,44 @@
     "zoomOut": "Pomniejsz",
     "fitWidth": "Dopasuj do szerokości",
     "zoomLevel": "Powiększenie: {percent}",
-    "openAnother": "Otwórz inny plik PDF"
+    "openAnother": "Otwórz inny plik PDF",
+    "tools": "Narzędzia",
+    "selectTool": "Zaznaczanie",
+    "addText": "Dodaj tekst",
+    "textBox": "Pole tekstowe",
+    "unsupportedCharacters": "Czcionki PDF nie obsługują znaków: {characters}"
+  },
+  "Formatting": {
+    "label": "Formatowanie",
+    "font": "Czcionka: {font}",
+    "fonts": {
+      "sans": "Bezszeryfowa",
+      "serif": "Szeryfowa",
+      "mono": "Stałej szerokości"
+    },
+    "size": "Rozmiar czcionki w punktach",
+    "bold": "Pogrubienie",
+    "italic": "Kursywa",
+    "underline": "Podkreślenie",
+    "color": "Kolor: {color}",
+    "colors": {
+      "black": "Czarny",
+      "gray": "Szary",
+      "red": "Czerwony",
+      "orange": "Pomarańczowy",
+      "green": "Zielony",
+      "blue": "Niebieski",
+      "purple": "Fioletowy",
+      "white": "Biały"
+    },
+    "customColor": "Własny kolor…",
+    "customColorValue": "własny ({value})",
+    "alignment": "Wyrównanie",
+    "align": {
+      "left": "Do lewej",
+      "center": "Do środka",
+      "right": "Do prawej"
+    }
   },
   "NotFound": {
     "title": "Nie znaleziono strony",

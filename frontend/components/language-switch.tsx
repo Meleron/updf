@@ -28,7 +28,8 @@ export function LanguageSwitch() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm">
           <Languages />
-          <span className="sr-only">{t("Header.language")}</span> {locale.toUpperCase()}
+          <span className="sr-only">{t("Header.language")}</span>{" "}
+          <span className="sr-only sm:not-sr-only">{locale.toUpperCase()}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

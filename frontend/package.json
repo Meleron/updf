@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node -e \"require('node:fs').cpSync('../fonts', 'public/fonts', { recursive: true })\"",
     "dev": "next dev",
+    "prebuild": "node -e \"require('node:fs').cpSync('../fonts', 'public/fonts', { recursive: true })\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

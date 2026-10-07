@@ -3,11 +3,15 @@
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { FormattingBar } from "@/components/editor/formatting-bar";
 import { PdfPage } from "@/components/editor/pdf-page";
+import { TextBox } from "@/components/editor/text-box";
 import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
 import type { OpenedDocument } from "@/components/open-document";
-import { currentPage as pageInView, displaySize, toPixels } from "@/lib/coordinates";
+import { currentPage as pageInView, displaySize, pointOnPage, toPixels } from "@/lib/coordinates";
+import { editorReducer, initialState } from "@/lib/editor-state";
+import { cn } from "@/lib/utils";
 import { fitWidth } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -18,6 +22,17 @@ const padding = 24;
 const thumbnailWidth = 120;
 /** Below this width the thumbnail panel starts closed and floats over the pages. */
 const wideScreen = "(min-width: 768px)";
+
+/**
+ * Whether a key press belongs to something else, so it must not trigger an editor shortcut: a text field, a menu
+ * (which jumps to an item by its first letter), or the text edit in progress and its formatting bar.
+ */
+function isForControl(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.matches("input, textarea, select") || !!target.closest("[role=menu], [data-edit-ui]"))
+  );
+}
 
 /** Loads every page's size first, so the layout and the zoom are right from the first frame. */
 export function Editor({ document }: { document: OpenedDocument }) {
@@ -67,8 +82,26 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [zoomSetting, setZoomSetting] = useState<ZoomSetting>("fit");
   const [thumbnailsOpen, setThumbnailsOpen] = useState(() => window.matchMedia(wideScreen).matches);
   const [currentPage, setCurrentPage] = useState(0);
+  const [state, dispatch] = useReducer(editorReducer, initialState);
+  const editing = state.edits.find((edit) => edit.id === state.editing);
+  const editingInput = useRef<HTMLTextAreaElement>(null);
   const pageElements = useRef<HTMLElement[]>([]);
   const zoomAnchor = useRef<number | null>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.ctrlKey || event.metaKey || event.altKey || isForControl(event.target)) {
+        return;
+      }
+      if (event.key.toLowerCase() === "t") {
+        dispatch({ type: "setTool", tool: "text" });
+      } else if (event.key === "Escape") {
+        dispatch({ type: "setTool", tool: "select" });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!scroller) {
@@ -103,6 +136,13 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
     setCurrentPage(pageInView(tops, { top: scroller!.scrollTop, height: scroller!.clientHeight, scrollHeight: scroller!.scrollHeight }));
   }
 
+  function addText(event: React.MouseEvent<HTMLElement>, page: number) {
+    if (state.tool === "text") {
+      const { x, y } = pointOnPage(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect(), zoom);
+      dispatch({ type: "addText", id: crypto.randomUUID(), page, x, y });
+    }
+  }
+
   function showPage(index: number) {
     pageElements.current[index].scrollIntoView({ block: "start" });
     setCurrentPage(index);
@@ -120,6 +160,8 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
         onZoom={changeZoom}
         thumbnailsOpen={thumbnailsOpen}
         onToggleThumbnails={() => setThumbnailsOpen((open) => !open)}
+        tool={state.tool}
+        onTool={(tool) => dispatch({ type: "setTool", tool })}
       />
       <div className="relative flex min-h-0 flex-1">
         <nav
@@ -152,34 +194,64 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
             ))}
           </ol>
         </nav>
-        {/* A stable scrollbar gutter keeps fit width from changing as a scrollbar comes and goes. */}
-        <main
-          ref={setScroller}
-          onScroll={updateCurrentPage}
-          className="relative min-w-0 flex-1 overflow-auto bg-canvas [scrollbar-gutter:stable]"
-        >
-          {availableWidth > 0 && (
-            <div className="mx-auto flex w-max min-w-full flex-col items-center gap-4 p-6">
-              {pages.map((page, i) => (
-                <div
-                  key={i}
-                  ref={(element) => {
-                    pageElements.current[i] = element!;
-                  }}
-                >
-                  <PdfPage
-                    page={page.proxy}
-                    size={page.size}
-                    scale={toPixels(1, zoom)}
-                    root={scroller}
-                    label={t("pageOf", { number: i + 1, total: pages.length })}
-                    className="ring-1 ring-border"
-                  />
-                </div>
-              ))}
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          {/* A stable scrollbar gutter keeps fit width from changing as a scrollbar comes and goes. */}
+          <main
+            ref={setScroller}
+            onScroll={updateCurrentPage}
+            className="relative min-h-0 flex-1 overflow-auto bg-canvas [scrollbar-gutter:stable]"
+          >
+            {availableWidth > 0 && (
+              <div className="mx-auto flex w-max min-w-full flex-col items-center gap-4 p-6">
+                {pages.map((page, i) => (
+                  <div
+                    key={i}
+                    ref={(element) => {
+                      pageElements.current[i] = element!;
+                    }}
+                    onClick={(event) => addText(event, i)}
+                    className={cn("relative", state.tool === "text" && "cursor-text")}
+                  >
+                    <PdfPage
+                      page={page.proxy}
+                      size={page.size}
+                      scale={toPixels(1, zoom)}
+                      root={scroller}
+                      label={t("pageOf", { number: i + 1, total: pages.length })}
+                      className="ring-1 ring-border"
+                    />
+                    {state.edits
+                      .filter((edit) => edit.page === i)
+                      .map((edit) => (
+                        <TextBox
+                          key={edit.id}
+                          edit={edit}
+                          zoom={zoom}
+                          editing={edit === editing}
+                          inputRef={edit === editing ? editingInput : null}
+                          onChange={(lines) => dispatch({ type: "changeText", id: edit.id, lines })}
+                          onFinish={() => dispatch({ type: "finishEditing" })}
+                        />
+                      ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+          {/* Floats over the top of the pages, so they don't move when it appears. After the pages in the tab order, so
+              Tab goes from the text box to the bar. */}
+          {editing && (
+            <div className="pointer-events-none absolute inset-x-4 top-3 z-10 flex justify-center">
+              <FormattingBar
+                key={editing.id}
+                style={editing.style}
+                onStyle={(style) => dispatch({ type: "setStyle", style })}
+                onReturn={() => editingInput.current?.focus()}
+                onFinish={() => dispatch({ type: "finishEditing" })}
+              />
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );

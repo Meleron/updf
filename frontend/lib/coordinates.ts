@@ -41,3 +41,8 @@ export const maxCanvasPixels = 4096 * 4096;
 export function canvasPixelRatio(cssWidth: number, cssHeight: number, devicePixelRatio: number): number {
   return Math.min(devicePixelRatio, Math.sqrt(maxCanvasPixels / (cssWidth * cssHeight)));
 }
+
+/** The point on a page, in points from its top-left corner, under a position in the window (such as a click). */
+export function pointOnPage(clientX: number, clientY: number, page: { left: number; top: number }, zoom: number): { x: number; y: number } {
+  return { x: toPoints(clientX - page.left, zoom), y: toPoints(clientY - page.top, zoom) };
+}

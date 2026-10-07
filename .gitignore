@@ -29,6 +29,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .vercel/
+# Copied from fonts/ at build time
+frontend/public/fonts/
 
 # Playwright
 test-results/

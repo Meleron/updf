@@ -1,8 +1,9 @@
 "use client";
 
-import { Download, PanelLeft, Redo2, Undo2, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, MousePointer2, PanelLeft, Redo2, Type, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { ToggleButton } from "@/components/editor/toggle-button";
 import { LanguageSwitch } from "@/components/language-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { Tool } from "@/lib/editor-state";
 import { maxZoom, minZoom, zoomIn, zoomOut, zoomSteps } from "@/lib/zoom";
 
 export type ZoomSetting = number | "fit";
@@ -25,6 +27,8 @@ type Props = {
   onZoom: (setting: ZoomSetting) => void;
   thumbnailsOpen: boolean;
   onToggleThumbnails: () => void;
+  tool: Tool;
+  onTool: (tool: Tool) => void;
 };
 
 function Separator() {
@@ -32,7 +36,7 @@ function Separator() {
 }
 
 /** Undo, redo and Download stay disabled until their features exist. */
-export function TopBar({ fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails }: Props) {
+export function TopBar({ fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails, tool, onTool }: Props) {
   const t = useTranslations("Editor");
   const app = useTranslations("App");
   const percent = zoom === null ? null : `${Math.round(zoom * 100)}%`;
@@ -53,10 +57,31 @@ export function TopBar({ fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, on
         {app("name")}
       </Link>
       <Separator />
-      <h1 className="min-w-0 flex-1 truncate text-sm font-medium" title={fileName}>
+      {/* Phones have no room for the name. */}
+      <h1 className="sr-only min-w-0 flex-1 truncate text-sm font-medium sm:not-sr-only" title={fileName}>
         {fileName}
       </h1>
-      <div className="flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1">
+        <div role="group" aria-label={t("tools")} className="flex items-center gap-1">
+          {/* Small screens have no room for Select, so there Add text switches back to it when pressed again. */}
+          <ToggleButton
+            label={t("selectTool")}
+            pressed={tool === "select"}
+            onClick={() => onTool("select")}
+            className="hidden sm:inline-flex"
+          >
+            <MousePointer2 />
+          </ToggleButton>
+          <ToggleButton
+            label={t("addText")}
+            shortcut="T"
+            pressed={tool === "text"}
+            onClick={() => onTool(tool === "text" ? "select" : "text")}
+          >
+            <Type />
+          </ToggleButton>
+        </div>
+        <Separator />
         <Button variant="ghost" size="icon" disabled aria-label={t("undo")}>
           <Undo2 />
         </Button>

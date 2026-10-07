@@ -52,16 +52,22 @@ const sources = ["app", "components", "lib"].flatMap((dir) =>
     .map((f) => join(dir, f)),
 );
 
-function matches(pattern: RegExp): string[] {
-  return sources.flatMap((f) => [...readFileSync(join(root, f), "utf8").matchAll(pattern)].map((m) => `${f}: ${m[0]}`));
+function matches(pattern: RegExp, files = sources): string[] {
+  return files.flatMap((f) => [...readFileSync(join(root, f), "utf8").matchAll(pattern)].map((m) => `${f}: ${m[0]}`));
 }
 
 it("reads the source files", () => {
   expect(sources).toContain(join("app", "layout.tsx"));
 });
 
+// Files with colours of the text in the PDF, which are content, not interface colours.
+const documentColours = [join("lib", "editor-state.ts"), join("lib", "formatting.ts")];
+
 it("uses no colours outside the design tokens", () => {
-  expect(matches(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch)\(|\b(bg|text|border|ring|fill|stroke)-(white|black)\b/gi)).toEqual([]);
+  const files = sources.filter((f) => !documentColours.includes(f));
+  expect(
+    matches(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|lab|lch)\(|\b(bg|text|border|ring|fill|stroke)-(white|black)\b/gi, files),
+  ).toEqual([]);
 });
 
 it("uses only sizes from the type scale", () => {

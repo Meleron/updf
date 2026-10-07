@@ -1,11 +1,18 @@
 import { expect, it } from "vitest";
 import { fixture } from "@/test-utils/pdf";
-import { canvasPixelRatio, currentPage, displaySize, maxCanvasPixels, pageAt, toPixels, toPoints } from "./coordinates";
+import { canvasPixelRatio, currentPage, displaySize, maxCanvasPixels, pageAt, pointOnPage, toPixels, toPoints } from "./coordinates";
 import { checkPdf } from "./pdf-check";
 
 it.each([0.5, 1, 1.25, 2])("converts points to screen pixels and back at %s zoom", (zoom) => {
   expect(toPixels(72, zoom)).toBeCloseTo(96 * zoom);
   expect(toPoints(toPixels(123.4, zoom), zoom)).toBeCloseTo(123.4);
+});
+
+it("converts a click on a page into points from the page's top-left corner", () => {
+  const page = { left: 100, top: 50 };
+
+  expect(pointOnPage(100 + 96, 50 + 128, page, 1)).toEqual({ x: 72, y: 96 });
+  expect(pointOnPage(100 + 192, 50 + 256, page, 2)).toEqual({ x: 72, y: 96 });
 });
 
 // Sizes as a standard viewer shows them (pdfinfo reports the same).
