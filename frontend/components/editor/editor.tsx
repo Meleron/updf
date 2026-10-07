@@ -2,16 +2,18 @@
 
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
+import { Info } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { FormattingBar } from "@/components/editor/formatting-bar";
+import { editUi } from "@/components/editor/edit-focus";
+import { PageView } from "@/components/editor/page-view";
 import { PdfPage } from "@/components/editor/pdf-page";
-import { TextBox } from "@/components/editor/text-box";
 import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
+import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
-import { currentPage as pageInView, displaySize, pointOnPage, toPixels } from "@/lib/coordinates";
+import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
 import { editorReducer, initialState } from "@/lib/editor-state";
-import { cn } from "@/lib/utils";
 import { fitWidth } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -22,6 +24,7 @@ const padding = 24;
 const thumbnailWidth = 120;
 /** Below this width the thumbnail panel starts closed and floats over the pages. */
 const wideScreen = "(min-width: 768px)";
+const replaceHintKey = "updf.replaceHint";
 
 /**
  * Whether a key press belongs to something else, so it must not trigger an editor shortcut: a text field, a menu
@@ -85,6 +88,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [state, dispatch] = useReducer(editorReducer, initialState);
   const editing = state.edits.find((edit) => edit.id === state.editing);
   const editingInput = useRef<HTMLTextAreaElement>(null);
+  const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
   const zoomAnchor = useRef<number | null>(null);
 
@@ -136,10 +140,11 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
     setCurrentPage(pageInView(tops, { top: scroller!.scrollTop, height: scroller!.clientHeight, scrollHeight: scroller!.scrollHeight }));
   }
 
-  function addText(event: React.MouseEvent<HTMLElement>, page: number) {
-    if (state.tool === "text") {
-      const { x, y } = pointOnPage(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect(), zoom);
-      dispatch({ type: "addText", id: crypto.randomUUID(), page, x, y });
+  // Shown after the first replacement in a browser session.
+  function showReplaceHint() {
+    if (!sessionStorage.getItem(replaceHintKey)) {
+      sessionStorage.setItem(replaceHintKey, "shown");
+      setReplaceHint(true);
     }
   }
 
@@ -204,36 +209,24 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
             {availableWidth > 0 && (
               <div className="mx-auto flex w-max min-w-full flex-col items-center gap-4 p-6">
                 {pages.map((page, i) => (
-                  <div
+                  <PageView
                     key={i}
                     ref={(element) => {
                       pageElements.current[i] = element!;
                     }}
-                    onClick={(event) => addText(event, i)}
-                    className={cn("relative", state.tool === "text" && "cursor-text")}
-                  >
-                    <PdfPage
-                      page={page.proxy}
-                      size={page.size}
-                      scale={toPixels(1, zoom)}
-                      root={scroller}
-                      label={t("pageOf", { number: i + 1, total: pages.length })}
-                      className="ring-1 ring-border"
-                    />
-                    {state.edits
-                      .filter((edit) => edit.page === i)
-                      .map((edit) => (
-                        <TextBox
-                          key={edit.id}
-                          edit={edit}
-                          zoom={zoom}
-                          editing={edit === editing}
-                          inputRef={edit === editing ? editingInput : null}
-                          onChange={(lines) => dispatch({ type: "changeText", id: edit.id, lines })}
-                          onFinish={() => dispatch({ type: "finishEditing" })}
-                        />
-                      ))}
-                  </div>
+                    index={i}
+                    page={page.proxy}
+                    size={page.size}
+                    zoom={zoom}
+                    root={scroller}
+                    label={t("pageOf", { number: i + 1, total: pages.length })}
+                    tool={state.tool}
+                    edits={state.edits.filter((edit) => edit.page === i)}
+                    editing={editing}
+                    editingInput={editingInput}
+                    dispatch={dispatch}
+                    onReplace={showReplaceHint}
+                  />
                 ))}
               </div>
             )}
@@ -248,7 +241,25 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                 onStyle={(style) => dispatch({ type: "setStyle", style })}
                 onReturn={() => editingInput.current?.focus()}
                 onFinish={() => dispatch({ type: "finishEditing" })}
+                onDelete={() => dispatch({ type: "delete", id: editing.id })}
               />
+            </div>
+          )}
+          {/* Part of the edit, so dismissing it doesn't finish the replacement being typed. */}
+          {replaceHint && (
+            <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex justify-center">
+              <div
+                {...editUi}
+                role="status"
+                onMouseDown={(event) => event.preventDefault()}
+                className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border bg-surface py-2 pr-2 pl-4 text-sm shadow-lg"
+              >
+                <Info aria-hidden className="size-4 shrink-0 text-text-secondary" />
+                <p>{t("replaceHint")}</p>
+                <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setReplaceHint(false)}>
+                  {t("gotIt")}
+                </Button>
+              </div>
             </div>
           )}
         </div>

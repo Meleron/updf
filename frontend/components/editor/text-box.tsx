@@ -15,7 +15,7 @@ type Props = {
   zoom: number;
   editing: boolean;
   /** The textarea while editing, so the formatting bar can put the focus back. */
-  inputRef: React.Ref<HTMLTextAreaElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null> | null;
   onChange: (lines: string[]) => void;
   onFinish: () => void;
 };
@@ -39,6 +39,14 @@ export function TextBox({ edit, zoom, editing, inputRef, onChange, onFinish }: P
   const fontSize = toPixels(style.size, zoom);
   const baseline = useRef<HTMLSpanElement>(null);
   const [shift, setShift] = useState(0);
+
+  // An edit starts with the cursor after the text, which matters for a replacement.
+  useLayoutEffect(() => {
+    const input = inputRef?.current;
+    if (editing && input) {
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }, [editing, inputRef]);
 
   useLayoutEffect(() => {
     let active = true;

@@ -10,7 +10,7 @@ using PdfSharp.Pdf;
 var root = Here();
 var output = Path.Combine(root, "pdfs");
 Directory.CreateDirectory(output);
-GlobalFontSettings.FontResolver = new NotoSans(Path.Combine(root, "..", "fonts"));
+GlobalFontSettings.FontResolver = new NotoFonts(Path.Combine(root, "..", "fonts"));
 
 Save("simple.pdf", Document(1, (g, _) => Lines(g, 72, 96, "Quarterly report", "This is a simple one-page document.", "It has a few lines of text to edit.")));
 Save("pages-100.pdf", Document(100, (g, i) => Lines(g, 72, 96, $"Page {i + 1} of 100")));
@@ -26,6 +26,34 @@ Save("scanned.pdf", Document(1, (g, _) =>
     using var image = XImage.FromStream(new MemoryStream(ScannedPage()));
     g.DrawImage(image, 0, 0, g.PageSize.Width, g.PageSize.Height);
 }));
+
+// Lines to replace: each font style the editor matches, white text on a colour, a line drawn word by word, and two
+// columns on one baseline. The second page is turned by /Rotate 90, and its text is drawn turned back, so it reads upright.
+var styles = Document(2, (g, i) =>
+{
+    if (i == 1)
+    {
+        g.RotateAtTransform(-90, new XPoint(100, 700));
+        g.DrawString("Upright on a rotated page", new XFont(NotoFonts.Sans, 14), XBrushes.Black, 100, 700);
+        return;
+    }
+    g.DrawString("Serif bold italic", new XFont(NotoFonts.Serif, 12, XFontStyleEx.BoldItalic), XBrushes.Black, 72, 96);
+    g.DrawString("Mono regular", new XFont(NotoFonts.Mono, 10), XBrushes.Black, 72, 120);
+    g.DrawString("Sans bold", new XFont(NotoFonts.Sans, 16, XFontStyleEx.Bold), XBrushes.Black, 72, 148);
+    g.DrawRectangle(new XSolidBrush(XColor.FromArgb(0x1E, 0x3A, 0x8A)), 60, 162, 220, 30);
+    g.DrawString("White on blue", new XFont(NotoFonts.Sans, 14), XBrushes.White, 72, 182);
+    var font = new XFont(NotoFonts.Sans, 14);
+    var x = 72.0;
+    foreach (var word in new[] { "Drawn", "word", "by", "word" })
+    {
+        g.DrawString(word, font, XBrushes.Black, x, 220);
+        x += g.MeasureString(word + " ", font).Width;
+    }
+    g.DrawString("Left column", font, XBrushes.Black, 72, 252);
+    g.DrawString("Right column", font, XBrushes.Black, 340, 252);
+});
+styles.Pages[1].Elements.SetInteger("/Rotate", 90);
+Save("styles.pdf", styles);
 
 var rotated = Document(1, (g, _) => Lines(g, 72, 96, "This page is rotated by 90 degrees."));
 rotated.Pages[0].Elements.SetInteger("/Rotate", 90);
@@ -102,7 +130,7 @@ static PdfDocument Document(int pageCount, Action<XGraphics, int> draw)
 
 static void Lines(XGraphics g, double x, double y, params string[] lines)
 {
-    var font = new XFont(NotoSans.Family, 14);
+    var font = new XFont(NotoFonts.Sans, 14);
     foreach (var line in lines)
     {
         g.DrawString(line, font, XBrushes.Black, x, y);
@@ -138,11 +166,24 @@ static byte[] ScannedPage()
 
 static string Here([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 
-sealed class NotoSans(string fonts) : IFontResolver
+sealed class NotoFonts(string fonts) : IFontResolver
 {
-    public const string Family = "Noto Sans";
+    public const string Sans = "Noto Sans";
+    public const string Serif = "Noto Serif";
+    public const string Mono = "Noto Sans Mono";
 
-    public FontResolverInfo ResolveTypeface(string familyName, bool bold, bool italic) => new("NotoSans-Regular");
+    public FontResolverInfo ResolveTypeface(string familyName, bool bold, bool italic)
+    {
+        var prefix = familyName.Replace(" ", "");
+        var style = (bold, italic) switch
+        {
+            (true, true) => "BoldItalic",
+            (true, false) => "Bold",
+            (false, true) => "Italic",
+            _ => "Regular",
+        };
+        return new FontResolverInfo($"{prefix}-{style}");
+    }
 
     public byte[] GetFont(string faceName) => File.ReadAllBytes(Path.Combine(fonts, faceName + ".ttf"));
 }

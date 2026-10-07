@@ -45,7 +45,10 @@
     "selectTool": "Zaznaczanie",
     "addText": "Dodaj tekst",
     "textBox": "Pole tekstowe",
-    "unsupportedCharacters": "Czcionki PDF nie obsługują znaków: {characters}"
+    "unsupportedCharacters": "Czcionki PDF nie obsługują znaków: {characters}",
+    "noText": "Na tej stronie nie ma tekstu do zastąpienia. Użyj Dodaj tekst, aby na niej pisać.",
+    "replaceHint": "Zastąpiony tekst jest ukryty, a nie usunięty. Nie używaj tego do usuwania poufnych informacji.",
+    "gotIt": "Rozumiem"
   },
   "Formatting": {
     "label": "Formatowanie",
@@ -77,7 +80,8 @@
       "left": "Do lewej",
       "center": "Do środka",
       "right": "Do prawej"
-    }
+    },
+    "delete": "Usuń pole tekstowe"
   },
   "NotFound": {
     "title": "Nie znaleziono strony",

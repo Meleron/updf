@@ -45,7 +45,10 @@
     "selectTool": "Select",
     "addText": "Add text",
     "textBox": "Text box",
-    "unsupportedCharacters": "The PDF fonts can't show: {characters}"
+    "unsupportedCharacters": "The PDF fonts can't show: {characters}",
+    "noText": "No text to replace on this page. Use Add text to write on it.",
+    "replaceHint": "Replaced text is hidden, not removed. Don't use this to remove sensitive information.",
+    "gotIt": "Got it"
   },
   "Formatting": {
     "label": "Formatting",
@@ -77,7 +80,8 @@
       "left": "Align left",
       "center": "Centre",
       "right": "Align right"
-    }
+    },
+    "delete": "Delete text box"
   },
   "NotFound": {
     "title": "Page not found",

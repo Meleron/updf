@@ -17,6 +17,8 @@ type Props = {
   /** Leave out for decorative copies, such as thumbnails inside a labelled button. */
   label?: string;
   className?: string;
+  /** Called with the canvas when the page has been drawn, and with null when it is freed. Keep it stable. */
+  onRender?: (canvas: HTMLCanvasElement | null) => void;
 };
 
 /**
@@ -24,7 +26,7 @@ type Props = {
  * further away. Each render draws into a new canvas that replaces the old one when it's done, so zooming doesn't
  * flicker and a cancelled render never shares its canvas with the next one.
  */
-export function PdfPage({ page, size, scale, root, label, className }: Props) {
+export function PdfPage({ page, size, scale, root, label, className, onRender }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
   const [rendered, setRendered] = useState(false);
@@ -50,6 +52,7 @@ export function PdfPage({ page, size, scale, root, label, className }: Props) {
     const element = container.current!;
     if (!near) {
       element.replaceChildren();
+      onRender?.(null);
       return;
     }
     let cancelled = false;
@@ -70,6 +73,7 @@ export function PdfPage({ page, size, scale, root, label, className }: Props) {
         return task.promise.then(() => {
           element.replaceChildren(canvas);
           setRendered(true);
+          onRender?.(canvas);
         });
       })
       .catch((error: Error) => {
@@ -81,7 +85,7 @@ export function PdfPage({ page, size, scale, root, label, className }: Props) {
       cancelled = true;
       task?.cancel();
     };
-  }, [page, size, scale, near]);
+  }, [page, size, scale, near, onRender]);
 
   return (
     <div

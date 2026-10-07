@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenter, AlignLeft, AlignRight, Bold, ChevronDown, Italic, Underline } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, ChevronDown, Italic, Trash2, Underline } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { editUi, leavesEdit } from "@/components/editor/edit-focus";
@@ -25,6 +25,7 @@ type Props = {
   /** Puts the focus back in the text box, so typing goes on. */
   onReturn: () => void;
   onFinish: () => void;
+  onDelete: () => void;
 };
 
 const fonts = ["sans", "serif", "mono"] as const;
@@ -42,7 +43,7 @@ function Separator() {
  * Formats the text box being edited. The bar, its menus and the text box form one edit: focus moves between them
  * freely, and the edit finishes when it goes anywhere else or on Esc.
  */
-export function FormattingBar({ style, onStyle, onReturn, onFinish }: Props) {
+export function FormattingBar({ style, onStyle, onReturn, onFinish, onDelete }: Props) {
   const t = useTranslations("Formatting");
   const customColor = useRef<HTMLInputElement>(null);
   const pickingCustomColor = useRef(false);
@@ -142,6 +143,10 @@ export function FormattingBar({ style, onStyle, onReturn, onFinish }: Props) {
           </ToggleButton>
         ))}
       </div>
+      <Separator />
+      <Button variant="ghost" size="icon" className="shrink-0" aria-label={t("delete")} title={t("delete")} onClick={onDelete}>
+        <Trash2 />
+      </Button>
     </div>
   );
 }

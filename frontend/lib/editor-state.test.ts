@@ -71,4 +71,36 @@ describe("editorReducer", () => {
   it("ignores formatting when no box is being edited", () => {
     expect(editorReducer(initialState, { type: "setStyle", style: { size: 30 } })).toBe(initialState);
   });
+
+  it("adds a replacement ready to edit, without changing the style for new boxes", () => {
+    const edit = {
+      id: "r",
+      page: 0,
+      x: 72,
+      y: 81,
+      lines: ["Original"],
+      style: { ...defaultStyle, font: "serif" as const, size: 14 },
+      cover: { x: 70, y: 80, width: 100, height: 20, color: "#FEF3C7" },
+    };
+
+    const state = editorReducer(initialState, { type: "addReplacement", edit });
+
+    expect(state.edits).toEqual([edit]);
+    expect(state.editing).toBe("r");
+    expect(state.style).toEqual(defaultStyle);
+  });
+
+  it("deletes a box, and stops editing it", () => {
+    const state = addText(editorReducer(addText(), { type: "changeText", id: "a", lines: ["Kept"] }), "b");
+
+    expect(editorReducer(state, { type: "delete", id: "b" })).toMatchObject({ edits: [{ id: "a" }], editing: null });
+    expect(editorReducer(state, { type: "delete", id: "a" })).toMatchObject({ edits: [{ id: "b" }], editing: "b" });
+  });
+
+  it("removes a replacement emptied of text, with its cover", () => {
+    const edit = { id: "r", page: 0, x: 72, y: 81, lines: ["Original"], style: defaultStyle, cover: { x: 70, y: 80, width: 100, height: 20, color: "#FFFFFF" } };
+    const emptied = editorReducer(editorReducer(initialState, { type: "addReplacement", edit }), { type: "changeText", id: "r", lines: [""] });
+
+    expect(editorReducer(emptied, { type: "finishEditing" }).edits).toEqual([]);
+  });
 });

@@ -15,9 +15,11 @@ export interface EditorState {
 export type EditorAction =
   | { type: "setTool"; tool: Tool }
   | { type: "addText"; id: string; page: number; x: number; y: number }
+  | { type: "addReplacement"; edit: TextEdit }
   | { type: "changeText"; id: string; lines: string[] }
   | { type: "setStyle"; style: Partial<TextStyle> }
-  | { type: "finishEditing" };
+  | { type: "finishEditing" }
+  | { type: "delete"; id: string };
 
 // The colour of the text in the PDF, not an interface colour.
 export const defaultStyle: TextStyle = {
@@ -42,6 +44,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const edit = { id, page, x, y, lines: [""], style: state.style };
       return { ...state, edits: [...state.edits, edit], tool: "select", editing: id };
     }
+    case "addReplacement":
+      // A replacement has the style of the text it replaces, which isn't a style the user chose.
+      return { ...state, edits: [...state.edits, action.edit], editing: action.edit.id };
     case "changeText":
       return {
         ...state,
@@ -61,6 +66,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         edits: state.edits.filter((edit) => edit.id !== state.editing || edit.lines.some((line) => line.trim() !== "")),
         editing: null,
+      };
+    case "delete":
+      return {
+        ...state,
+        edits: state.edits.filter((edit) => edit.id !== action.id),
+        editing: state.editing === action.id ? null : state.editing,
       };
   }
 }

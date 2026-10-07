@@ -31,7 +31,8 @@ export async function checkPdf(file: File): Promise<CheckResult> {
       return { error: "not-a-pdf" };
     }
     const { getDocument } = await loadPdfJs();
-    const loading = getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+    // Font names tell replacements which font is closest (lib/text-lines.ts).
+    const loading = getDocument({ data: new Uint8Array(await file.arrayBuffer()), fontExtraProperties: true });
     task = loading;
     const document = await loading.promise;
     // pdf.js opens owner-password-only files without asking, but the backend can't modify any encrypted file.

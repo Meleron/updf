@@ -1,0 +1,163 @@
+"use client";
+
+import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { useTranslations } from "next-intl";
+import { useCallback, useRef, useState } from "react";
+import { PdfPage } from "@/components/editor/pdf-page";
+import { TextBox } from "@/components/editor/text-box";
+import { pointOnPage, toPixels } from "@/lib/coordinates";
+import type { TextEdit } from "@/lib/edits";
+import type { EditorAction, Tool } from "@/lib/editor-state";
+import { coverArea, isReplaced, replacementFor, sampleColors } from "@/lib/replace";
+import { readLines, type TextLine } from "@/lib/text-lines";
+import { cn } from "@/lib/utils";
+
+/** The band around a line whose colour the cover takes, in points. */
+const backgroundBand = 2;
+
+type Props = {
+  index: number;
+  page: PDFPageProxy;
+  /** The page's displayed size in points. */
+  size: { width: number; height: number };
+  zoom: number;
+  root: Element | null;
+  label: string;
+  tool: Tool;
+  /** The edits on this page. */
+  edits: TextEdit[];
+  editing: TextEdit | undefined;
+  editingInput: React.RefObject<HTMLTextAreaElement | null>;
+  dispatch: React.Dispatch<EditorAction>;
+  onReplace: () => void;
+  ref: React.Ref<HTMLDivElement>;
+};
+
+/**
+ * One page in the editor, with its edits. With Add text, a click adds a box. With Select, the existing line under the
+ * pointer is outlined, and a click replaces it. Lines are read once the page has been drawn, and covers sample their
+ * colour from the drawn page, which holds only the PDF (edits are separate elements above it).
+ */
+export function PageView(props: Props) {
+  const { index, page, size, zoom, root, label, tool, edits, editing, editingInput, dispatch, onReplace, ref } = props;
+  const t = useTranslations("Editor");
+  const canvas = useRef<HTMLCanvasElement | null>(null);
+  const reading = useRef<Promise<void> | null>(null);
+  const [lines, setLines] = useState<TextLine[] | null>(null);
+  const [hovered, setHovered] = useState<TextLine | null>(null);
+
+  const rendered = useCallback(
+    (drawn: HTMLCanvasElement | null) => {
+      canvas.current = drawn;
+      // After drawing, so the fonts are loaded and lines can tell which font is closest.
+      if (drawn) {
+        reading.current ??= readLines(page).then(setLines);
+      }
+    },
+    [page],
+  );
+
+  /** The line under the pointer, if the pointer is on the page itself (not on an edit) and the line isn't replaced. */
+  function lineAt(event: React.MouseEvent<HTMLElement>): TextLine | null {
+    if (tool !== "select" || !(event.target instanceof Element) || !event.target.closest("[role=img]")) {
+      return null;
+    }
+    const { x, y } = pointOnPage(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect(), zoom);
+    const line = lines?.find((candidate) => {
+      const area = coverArea(candidate);
+      return x >= area.x && x <= area.x + area.width && y >= area.y && y <= area.y + area.height;
+    });
+    return line && !isReplaced(line, edits) ? line : null;
+  }
+
+  function replace(line: TextLine) {
+    const drawn = canvas.current!;
+    const scale = drawn.width / size.width;
+    const area = coverArea(line);
+    const left = Math.max(0, Math.floor((area.x - backgroundBand) * scale));
+    const top = Math.max(0, Math.floor((area.y - backgroundBand) * scale));
+    const right = Math.min(drawn.width, Math.ceil((area.x + area.width + backgroundBand) * scale));
+    const bottom = Math.min(drawn.height, Math.ceil((area.y + area.height + backgroundBand) * scale));
+    const pixels = drawn.getContext("2d")!.getImageData(left, top, right - left, bottom - top);
+    const colors = sampleColors(
+      pixels,
+      { x: area.x * scale - left, y: area.y * scale - top, width: area.width * scale, height: area.height * scale },
+      backgroundBand * scale,
+    );
+    dispatch({ type: "addReplacement", edit: { id: crypto.randomUUID(), page: index, ...replacementFor(line, colors) } });
+    onReplace();
+  }
+
+  function click(event: React.MouseEvent<HTMLDivElement>) {
+    if (tool === "text") {
+      const { x, y } = pointOnPage(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect(), zoom);
+      dispatch({ type: "addText", id: crypto.randomUUID(), page: index, x, y });
+      return;
+    }
+    const line = lineAt(event);
+    if (line && canvas.current) {
+      setHovered(null);
+      replace(line);
+    }
+  }
+
+  const outline = hovered && coverArea(hovered);
+  return (
+    <div
+      ref={ref}
+      onClick={click}
+      onPointerMove={(event) => setHovered(lineAt(event))}
+      onPointerLeave={() => setHovered(null)}
+      className={cn("relative", tool === "text" && "cursor-text", outline && "cursor-pointer")}
+    >
+      <PdfPage page={page} size={size} scale={toPixels(1, zoom)} root={root} label={label} className="ring-1 ring-border" onRender={rendered} />
+      {outline && (
+        <div
+          data-testid="line-outline"
+          className="pointer-events-none absolute rounded-sm outline-1 outline-accent/50"
+          style={{
+            left: toPixels(outline.x, zoom),
+            top: toPixels(outline.y, zoom),
+            width: toPixels(outline.width, zoom),
+            height: toPixels(outline.height, zoom),
+          }}
+        />
+      )}
+      {/* With Add text the user is already doing what the hint suggests. */}
+      {lines?.length === 0 && tool === "select" && (
+        <p className="pointer-events-none absolute top-3 left-1/2 w-max max-w-[90%] -translate-x-1/2 rounded-md border bg-surface px-3 py-1 text-center text-xs text-text-secondary shadow-sm">
+          {t("noText")}
+        </p>
+      )}
+      {/* Covers go under every text box, as in the PDF. */}
+      {edits.map(
+        (edit) =>
+          edit.cover && (
+            <div
+              key={edit.id}
+              data-testid="cover"
+              className="absolute"
+              style={{
+                left: toPixels(edit.cover.x, zoom),
+                top: toPixels(edit.cover.y, zoom),
+                width: toPixels(edit.cover.width, zoom),
+                height: toPixels(edit.cover.height, zoom),
+                backgroundColor: edit.cover.color,
+              }}
+            />
+          ),
+      )}
+      {edits.map((edit) => (
+        <TextBox
+          key={edit.id}
+          edit={edit}
+          zoom={zoom}
+          editing={edit === editing}
+          inputRef={edit === editing ? editingInput : null}
+          onChange={(lines) => dispatch({ type: "changeText", id: edit.id, lines })}
+          onFinish={() => dispatch({ type: "finishEditing" })}
+        />
+      ))}
+    </div>
+  );
+}
