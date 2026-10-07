@@ -1,15 +1,25 @@
 "use client";
 
+import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createContext, useContext, useState } from "react";
 
-type OpenDocument = { file: File | null; open: (file: File) => void };
+/** The PDF the user opened, as a file (for export) and as the document pdf.js has already parsed (for viewing). */
+export type OpenedDocument = { file: File; pdf: PDFDocumentProxy };
 
-const OpenDocumentContext = createContext<OpenDocument>({ file: null, open: () => {} });
+type OpenDocument = { opened: OpenedDocument | null; open: (document: OpenedDocument) => void };
 
-/** Holds the PDF the user opened. It stays in the browser: nothing is uploaded until export. */
+const OpenDocumentContext = createContext<OpenDocument>({ opened: null, open: () => {} });
+
+/** Holds the opened PDF. It stays in the browser: nothing is uploaded until export. */
 export function OpenDocumentProvider({ children }: { children: React.ReactNode }) {
-  const [file, open] = useState<File | null>(null);
-  return <OpenDocumentContext value={{ file, open }}>{children}</OpenDocumentContext>;
+  const [opened, setOpened] = useState<OpenedDocument | null>(null);
+
+  function open(document: OpenedDocument) {
+    opened?.pdf.loadingTask.destroy();
+    setOpened(document);
+  }
+
+  return <OpenDocumentContext value={{ opened, open }}>{children}</OpenDocumentContext>;
 }
 
 export function useOpenDocument() {

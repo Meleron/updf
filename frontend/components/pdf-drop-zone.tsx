@@ -26,13 +26,13 @@ export function PdfDropZone() {
     }
     setError(null);
     setChecking(true);
-    const problem = await checkPdf(file);
-    if (problem) {
-      setError(problem);
+    const result = await checkPdf(file);
+    if ("error" in result) {
+      setError(result.error);
       setChecking(false);
       return;
     }
-    open(file);
+    open({ file, pdf: result.document });
     router.push("/edit");
   }
 

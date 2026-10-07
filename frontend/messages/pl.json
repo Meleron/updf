@@ -30,6 +30,21 @@
     "unexpected": "Coś poszło nie tak podczas otwierania pliku. Spróbuj ponownie."
   },
   "Editor": {
-    "comingSoon": "Widok stron pojawi się wkrótce."
+    "thumbnails": "Miniatury stron",
+    "page": "Strona {number}",
+    "pageOf": "Strona {number} z {total}",
+    "undo": "Cofnij",
+    "redo": "Ponów",
+    "download": "Pobierz",
+    "zoomIn": "Powiększ",
+    "zoomOut": "Pomniejsz",
+    "fitWidth": "Dopasuj do szerokości",
+    "zoomLevel": "Powiększenie: {percent}",
+    "openAnother": "Otwórz inny plik PDF"
+  },
+  "NotFound": {
+    "title": "Nie znaleziono strony",
+    "description": "Pod tym adresem nic nie ma.",
+    "home": "Otwórz plik PDF"
   }
 }

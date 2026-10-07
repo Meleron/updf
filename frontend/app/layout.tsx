@@ -4,7 +4,6 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { ThemeProvider } from "next-themes";
 import { Geist } from "next/font/google";
 import { connection } from "next/server";
-import { AppHeader } from "@/components/app-header";
 import { BackendUrlProvider } from "@/components/backend-url";
 import { OpenDocumentProvider } from "@/components/open-document";
 import "./globals.css";
@@ -30,10 +29,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <NextIntlClientProvider>
             <BackendUrlProvider url={backendUrl}>
-              <OpenDocumentProvider>
-                <AppHeader />
-                {children}
-              </OpenDocumentProvider>
+              <OpenDocumentProvider>{children}</OpenDocumentProvider>
             </BackendUrlProvider>
           </NextIntlClientProvider>
         </ThemeProvider>

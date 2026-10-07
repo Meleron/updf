@@ -1,12 +1,5 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { expect, test, type Page } from "@playwright/test";
-
-type Upload = string | { name: string; mimeType: string; buffer: Buffer };
-
-function fixture(name: string): string {
-  return fileURLToPath(new URL(`../../fixtures/pdfs/${name}`, import.meta.url));
-}
+import { expect, test } from "@playwright/test";
+import { drop, pick, type Upload } from "./helpers";
 
 // Generated here rather than stored with the fixtures, as the spec asks.
 const overSizeLimit: Upload = {
@@ -14,25 +7,6 @@ const overSizeLimit: Upload = {
   mimeType: "application/pdf",
   buffer: Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(25 * 1024 * 1024)]),
 };
-
-async function pick(page: Page, file: Upload, button = "Choose a PDF") {
-  const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: button }).click();
-  await (await chooser).setFiles(typeof file === "string" ? fixture(file) : file);
-}
-
-async function drop(page: Page, name: string) {
-  const dataTransfer = await page.evaluateHandle(
-    ({ name, base64 }) => {
-      const transfer = new DataTransfer();
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      transfer.items.add(new File([bytes], name, { type: "application/pdf" }));
-      return transfer;
-    },
-    { name, base64: readFileSync(fixture(name)).toString("base64") },
-  );
-  await page.getByRole("region", { name: "Drop a PDF here" }).dispatchEvent("drop", { dataTransfer });
-}
 
 // Next.js adds its own role="alert" element (the route announcer), so messages are found by their text.
 test.use({ locale: "en-US" });
