@@ -59,6 +59,20 @@ public class ExportEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_form_keeps_its_fields_after_editing()
+    {
+        var form = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "form.pdf"));
+
+        var response = await Export(form, "form.pdf", Edits(Edit(0, 72, 200, ["Signed"])));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var pdf = PigDocument.Open(await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Signed", pdf.GetPage(1).Text);
+        Assert.True(pdf.TryGetForm(out var fields));
+        Assert.Equal("name", Assert.Single(fields.Fields).Information.PartialName);
+    }
+
+    [Fact]
     public async Task Uploads_are_processed_without_writing_temp_files()
     {
         var ct = TestContext.Current.CancellationToken;

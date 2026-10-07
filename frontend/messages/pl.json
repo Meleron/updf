@@ -1,6 +1,6 @@
 {
   "App": {
-    "name": "updf",
+    "name": "uPdf",
     "description": "Edytuj tekst w plikach PDF."
   },
   "Header": {
@@ -14,5 +14,22 @@
   "Home": {
     "title": "Edytuj tekst w pliku PDF",
     "description": "Dodaj nowy tekst lub zastąp istniejące wiersze, a potem pobierz edytowany plik. Nic nie jest przechowywane na naszych serwerach."
+  },
+  "Upload": {
+    "title": "Upuść tutaj plik PDF",
+    "hint": "Do 25 MB i 100 stron.",
+    "choose": "Wybierz plik PDF",
+    "checking": "Sprawdzanie pliku…"
+  },
+  "Errors": {
+    "not-a-pdf": "Ten plik nie jest plikiem PDF. Wybierz plik PDF.",
+    "file-too-large": "Ten plik ma ponad 25 MB. Wybierz mniejszy plik PDF.",
+    "pdf-too-many-pages": "Ten plik PDF ma ponad 100 stron. Wybierz krótszy.",
+    "pdf-encrypted": "Ten plik PDF jest zabezpieczony hasłem lub uprawnieniami, więc nie można go edytować. Zapisz niezabezpieczoną kopię i spróbuj ponownie.",
+    "pdf-unreadable": "Ten plik PDF jest uszkodzony i nie można go otworzyć.",
+    "unexpected": "Coś poszło nie tak podczas otwierania pliku. Spróbuj ponownie."
+  },
+  "Editor": {
+    "comingSoon": "Widok stron pojawi się wkrótce."
   }
 }

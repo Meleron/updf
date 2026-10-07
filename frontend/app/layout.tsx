@@ -6,6 +6,7 @@ import { Geist } from "next/font/google";
 import { connection } from "next/server";
 import { AppHeader } from "@/components/app-header";
 import { BackendUrlProvider } from "@/components/backend-url";
+import { OpenDocumentProvider } from "@/components/open-document";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin", "latin-ext"] });
@@ -29,8 +30,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <NextIntlClientProvider>
             <BackendUrlProvider url={backendUrl}>
-              <AppHeader />
-              {children}
+              <OpenDocumentProvider>
+                <AppHeader />
+                {children}
+              </OpenDocumentProvider>
             </BackendUrlProvider>
           </NextIntlClientProvider>
         </ThemeProvider>

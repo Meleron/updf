@@ -1,6 +1,6 @@
 {
   "App": {
-    "name": "updf",
+    "name": "uPdf",
     "description": "Edit the text in your PDF files."
   },
   "Header": {
@@ -14,5 +14,22 @@
   "Home": {
     "title": "Edit the text in your PDF",
     "description": "Add new text or replace existing lines, then download the edited file. Nothing is stored on our servers."
+  },
+  "Upload": {
+    "title": "Drop a PDF here",
+    "hint": "Up to 25 MB and 100 pages.",
+    "choose": "Choose a PDF",
+    "checking": "Checking the file…"
+  },
+  "Errors": {
+    "not-a-pdf": "This file isn't a PDF. Choose a PDF file.",
+    "file-too-large": "This file is over 25 MB. Choose a smaller PDF.",
+    "pdf-too-many-pages": "This PDF has more than 100 pages. Choose a shorter one.",
+    "pdf-encrypted": "This PDF is protected with a password or permissions, so it can't be edited. Save an unprotected copy and try again.",
+    "pdf-unreadable": "This PDF is damaged and can't be opened.",
+    "unexpected": "Something went wrong while opening the file. Try again."
+  },
+  "Editor": {
+    "comingSoon": "The page view is coming next."
   }
 }
