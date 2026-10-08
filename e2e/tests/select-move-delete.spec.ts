@@ -1,6 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { pageImage } from "./helpers";
+import { expectNoAxeViolations, pageImage } from "./helpers";
 import { addBox, expectNear, openAt100Percent, pixelsPerPoint, textBoxInput } from "./text-boxes";
 
 test.use({ locale: "en-US" });
@@ -47,7 +46,7 @@ test("a box is selected with a click, and edited with another", async ({ page })
 test("Tab selects the boxes in turn, with a visible focus ring", async ({ page }) => {
   await openAt100Percent(page);
   await addBoxes(page, "First", "Second");
-  await page.getByRole("button", { name: "Page 1", exact: true }).focus();
+  await page.getByTestId("pages").focus();
 
   await page.keyboard.press("Tab");
   await expect(boxes(page).first()).toBeFocused();
@@ -169,7 +168,7 @@ test("a box can't be resized: its size follows its text", async ({ page }) => {
 test("everything works from the keyboard alone", async ({ page }) => {
   await openAt100Percent(page);
   await addBoxes(page, "Keys");
-  await page.getByRole("button", { name: "Page 1", exact: true }).focus();
+  await page.getByTestId("pages").focus();
 
   // Tab to the box, Enter to edit it, then Esc back to the box.
   await page.keyboard.press("Tab");
@@ -200,7 +199,5 @@ test("the editor with a selected box passes an accessibility check", async ({ pa
   await boxes(page).click();
   await expect(bar(page)).toBeVisible();
 
-  const results = await new AxeBuilder({ page }).analyze();
-
-  expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(", ")}`)).toEqual([]);
+  await expectNoAxeViolations(page);
 });

@@ -38,6 +38,7 @@ describe("IndexedDbRepository", () => {
     expect(saved?.id).toBe("a");
     expect(saved?.file.name).toBe("report.pdf");
     expect(await saved?.file.text()).toBe("%PDF-1.7");
+    expect(saved?.file.type).toBe("application/pdf");
     expect(saved?.edits).toEqual(edits);
   });
 
@@ -94,5 +95,21 @@ describe("IndexedDbRepository", () => {
     await documents.saveEdits("a", { ...edits, version: 2 } as unknown as EditDocument);
 
     expect(await documents.load()).toBeNull();
+  });
+
+  it("ignores a file saved before files were stored as bytes", async () => {
+    const name = `test-${++databases}`;
+    await new IndexedDbRepository(name).saveFile("a", pdf("report.pdf"));
+    const database = await new Promise<IDBDatabase>((resolve) => {
+      indexedDB.open(name, 1).onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
+    });
+    await new Promise((resolve) => {
+      const transaction = database.transaction("document", "readwrite");
+      transaction.objectStore("document").put({ id: "a", file: pdf("report.pdf") }, "file");
+      transaction.oncomplete = resolve;
+    });
+    database.close();
+
+    expect(await new IndexedDbRepository(name).load()).toBeNull();
   });
 });

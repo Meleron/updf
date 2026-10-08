@@ -31,7 +31,8 @@ async function offsetOnPage(page: Page) {
   return { x: textBox.x - pageBox.x, baseline: baseline - pageBox.y };
 }
 
-test("Select is the default tool, and Add text is chosen from the toolbar or with T", async ({ page }) => {
+test("Select is the default tool, and Add text is chosen from the toolbar or with T", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Phones have no room for the Select button: Add text switches back to it.");
   await openInEditor(page, "simple.pdf");
   await expect(tool(page, "Select")).toHaveAttribute("aria-pressed", "true");
   await expect(tool(page, "Add text")).toHaveAttribute("aria-pressed", "false");
@@ -59,14 +60,14 @@ test("adds multi-line Polish text where the page is clicked, in Noto with its li
   await openAt100Percent(page);
   await addBox(page);
   // Placing a box goes back to Select.
-  await expect(tool(page, "Select")).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, "Add text")).toHaveAttribute("aria-pressed", "false");
 
   // Typing "t" here doesn't choose the Add text tool.
   await page.keyboard.type("Zażółć gęślą jaźń");
   await page.keyboard.press("Enter");
   await page.keyboard.type("Pchnąć w tę łódź jeża");
   await expect(page.getByRole("textbox", { name: "Text box" })).toHaveValue("Zażółć gęślą jaźń\nPchnąć w tę łódź jeża");
-  await expect(tool(page, "Select")).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, "Add text")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
 
   await expect(page.getByRole("textbox", { name: "Text box" })).toHaveCount(0);

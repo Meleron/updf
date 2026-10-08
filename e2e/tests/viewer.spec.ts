@@ -1,5 +1,5 @@
 import { devices, expect, test, type Page } from "@playwright/test";
-import { openInEditor, pageImage, pick, recordZoomLabels, zoomLabels } from "./helpers";
+import { openInEditor, pageImage, pick, recordZoomLabels, zoomLabels, showThumbnails } from "./helpers";
 
 
 function thumbnails(page: Page) {
@@ -47,17 +47,21 @@ test("pages are drawn when they come into view and freed when far away", async (
 
 test("clicking a thumbnail scrolls to its page and marks it as current", async ({ page }) => {
   await openInEditor(page, "pages-100.pdf");
+  await showThumbnails(page);
   await expect(thumbnails(page).getByRole("button")).toHaveCount(100);
   const thumbnail = thumbnails(page).getByRole("button", { name: "Page 42", exact: true });
 
   await thumbnail.click();
 
   await expect(pageImage(page, 42, 100)).toBeInViewport();
+  // On phones choosing a page closes the panel.
+  await showThumbnails(page);
   await expect(thumbnail).toHaveAttribute("aria-current", "page");
 });
 
 test("thumbnails work from the keyboard", async ({ page }) => {
   await openInEditor(page, "pages-100.pdf");
+  await showThumbnails(page);
 
   await thumbnails(page).getByRole("button", { name: "Page 7", exact: true }).focus();
   await page.keyboard.press("Enter");
@@ -65,7 +69,8 @@ test("thumbnails work from the keyboard", async ({ page }) => {
   await expect(pageImage(page, 7, 100)).toBeInViewport();
 });
 
-test("the thumbnail panel can be hidden and shown", async ({ page }) => {
+test("the thumbnail panel can be hidden and shown", async ({ page, isMobile }) => {
+  test.skip(isMobile, "On phones the panel starts closed, which the phone tests below cover.");
   await openInEditor(page, "simple.pdf");
   const toggle = page.getByRole("button", { name: "Page thumbnails" });
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -78,7 +83,8 @@ test("the thumbnail panel can be hidden and shown", async ({ page }) => {
   await expect(thumbnails(page)).toBeVisible();
 });
 
-test("zoom fits the page width by default and stays within 50% to 200%", async ({ page }) => {
+test("zoom fits the page width by default and stays within 50% to 200%", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Phones have no room for the zoom in and out buttons, only the zoom menu.");
   await openInEditor(page, "simple.pdf");
   const availableWidth = await page.getByTestId("pages").evaluate((pages) => pages.clientWidth - 48);
   await expectWidth(page, 1, 1, availableWidth);
@@ -134,7 +140,8 @@ for (const [name, width, height] of [
     const box = (await image.boundingBox())!;
     expect(box.width / box.height).toBeCloseTo(width / height, 2);
     const canvas = image.locator("canvas");
-    await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(Math.floor((width * 2) / 3));
+    const pixels = Math.floor(((width * 2) / 3) * (await page.evaluate(() => devicePixelRatio)));
+    await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(pixels);
     const png = await canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL("image/png"));
     expect(Buffer.from(png.split(",")[1], "base64")).toMatchSnapshot(name.replace(".pdf", ".png"));
   });

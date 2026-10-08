@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
@@ -34,6 +35,14 @@ export async function openInEditor(page: Page, name: string) {
   await expect(page).toHaveURL("/edit");
 }
 
+/** Opens the thumbnail panel, which starts closed on small screens. */
+export async function showThumbnails(page: Page) {
+  const toggle = page.getByRole("button", { name: "Page thumbnails" });
+  if ((await toggle.getAttribute("aria-expanded")) === "false") {
+    await toggle.click();
+  }
+}
+
 export function pageImage(page: Page, number: number, total: number) {
   return page.getByRole("img", { name: `Page ${number} of ${total}` });
 }
@@ -54,4 +63,19 @@ export async function recordZoomLabels(page: Page) {
 
 export function zoomLabels(page: Page) {
   return page.evaluate(() => (window as unknown as { zoomLabels: string[] }).zoomLabels);
+}
+
+/** Checks a page, or only the open dialog: the page behind it is inert and dimmed. */
+export async function expectNoAxeViolations(page: Page, only?: string) {
+  // Mid-animation colours are partly transparent, so contrast is measured once running ones end (a spinner never does).
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity)
+        .map((animation) => animation.finished.catch(() => {})),
+    ),
+  );
+  const results = await (only ? new AxeBuilder({ page }).include(only) : new AxeBuilder({ page })).analyze();
+  expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(", ")}`)).toEqual([]);
 }

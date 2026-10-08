@@ -5,6 +5,9 @@ import { readText } from "./pdf";
 import { textBoxInput } from "./text-boxes";
 
 test.use({ locale: "en-US" });
+// At 200% a phone's canvas would pass the size mobile browsers can draw, so it's drawn smaller than the screen, and
+// these checks need it at full size. Desktop Chromium runs the same engine.
+test.skip(({ isMobile }) => isMobile, "The canvas is capped below full size on phones at 200%.");
 
 /** CSS pixels per point at 200% zoom, where a fraction of a point shows. */
 const scale = 2 * (96 / 72);

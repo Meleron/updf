@@ -1,7 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { fixture, openInEditor, pageImage, pick } from "./helpers";
+import { expectNoAxeViolations, fixture, openInEditor, pageImage, pick, showThumbnails } from "./helpers";
 import { readText } from "./pdf";
 import { addBox, download, expectExportedAsPreviewed, openAt100Percent, pixelsPerPoint, previewLines, textBoxInput } from "./text-boxes";
 
@@ -25,11 +24,6 @@ function savedEdits(page: Page) {
       };
     });
   });
-}
-
-async function expectNoAxeViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(", ")}`)).toEqual([]);
 }
 
 function continueCard(page: Page, name: string) {
@@ -72,6 +66,7 @@ test("after a reload, Continue editing restores the document and every edit", as
 
 test("a restored replacement on a page not yet shown downloads in its original font", async ({ page }) => {
   await openInEditor(page, "pages-100.pdf");
+  await showThumbnails(page);
   await page.getByRole("button", { name: "Page 50", exact: true }).click();
   const page50 = pageImage(page, 50, 100);
   const scale = (await page50.boundingBox())!.width / 595;
@@ -98,8 +93,9 @@ test("opening another file asks before replacing a saved document with edits", a
   await addBox(page);
   await page.keyboard.type("Saved edit");
   await page.keyboard.press("Escape");
-  // Right away: closing the editor saves the change still waiting, before the dashboard loads it.
-  await page.getByRole("link", { name: "uPdf" }).click();
+  // Right away: closing the editor saves the change still waiting, before the dashboard loads it. Back works on phones,
+  // which have no room for the app's name.
+  await page.goBack();
   await expect(continueCard(page, "simple.pdf")).toContainText("1 edit");
   await expectNoAxeViolations(page);
 
@@ -107,7 +103,7 @@ test("opening another file asks before replacing a saved document with edits", a
   await pick(page, "polish.pdf");
   await expect(dialog).toContainText("simple.pdf and its edits are saved in this browser. Opening polish.pdf replaces them.");
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, "[role=alertdialog]");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL("/");
@@ -151,15 +147,15 @@ test("a reload right after an edit keeps it", async ({ page }) => {
   await expect(continueCard(page, "simple.pdf")).toContainText("1 edit");
 });
 
-test("going back to the editor from the dashboard doesn't lose the saved edits", async ({ page }) => {
+test("going forward to the editor from the dashboard doesn't lose the saved edits", async ({ page }) => {
   await openInEditor(page, "simple.pdf");
   await addBox(page);
   await page.keyboard.type("Kept");
   await page.keyboard.press("Escape");
-  await page.getByRole("link", { name: "uPdf" }).click();
+  await page.goBack();
   await expect(continueCard(page, "simple.pdf")).toContainText("1 edit");
 
-  await page.goBack();
+  await page.goForward();
 
   await expect(page).toHaveURL("/");
   await expect(continueCard(page, "simple.pdf")).toContainText("1 edit");

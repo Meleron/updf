@@ -13,7 +13,7 @@ export interface SavedDocument {
  * whose document another tab has replaced, or whose file failed to save, saves nothing more.
  */
 export interface DocumentRepository {
-  /** The saved document, or null if there's none or its edits are in a format this version doesn't know. */
+  /** The saved document, or null if there's none or it's in a format this version doesn't know. */
   load(): Promise<SavedDocument | null>;
   /** Replaces the saved document with a newly opened file, under a new id, and no edits. The file is stored once, here. */
   saveFile(id: string, file: File): Promise<void>;
@@ -22,6 +22,9 @@ export interface DocumentRepository {
 }
 
 const store = "document";
+
+/** The file as stored: its bytes, since Safari can't store a File or Blob in a private window. */
+type StoredFile = { id: string; name: string; type: string; bytes: ArrayBuffer };
 
 /**
  * Keeps the document in one IndexedDB object store: the file with its id, and the edits, under their own keys.
@@ -37,20 +40,22 @@ export class IndexedDbRepository implements DocumentRepository {
     return this.run(async () => {
       const transaction = (await this.open()).transaction(store);
       const [saved, edits] = await Promise.all([
-        request<{ id: string; file: File } | undefined>(transaction.objectStore(store).get("file")),
+        request<StoredFile | undefined>(transaction.objectStore(store).get("file")),
         request<EditDocument | undefined>(transaction.objectStore(store).get("edits")),
       ]);
-      return saved && edits?.version === 1 ? { ...saved, edits } : null;
+      // A file saved before it was stored as bytes has none.
+      return saved?.bytes && edits?.version === 1 ? { id: saved.id, file: new File([saved.bytes], saved.name, { type: saved.type }), edits } : null;
     });
   }
 
   saveFile(id: string, file: File): Promise<void> {
-    return this.run(() =>
-      this.write((objects) => {
-        objects.put({ id, file }, "file");
+    return this.run(async () => {
+      const stored: StoredFile = { id, name: file.name, type: file.type, bytes: await file.arrayBuffer() };
+      await this.write((objects) => {
+        objects.put(stored, "file");
         objects.put({ version: 1, edits: [] } satisfies EditDocument, "edits");
-      }),
-    );
+      });
+    });
   }
 
   saveEdits(id: string, edits: EditDocument): Promise<void> {

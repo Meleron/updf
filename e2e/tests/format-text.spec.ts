@@ -91,7 +91,8 @@ test("every option shows in the preview, and typing goes on after each", async (
   await page.keyboard.press("Escape");
 
   const text = page.getByTestId("text-box").locator("div").first();
-  await expect(text).toHaveCSS("font-family", '"Noto Serif"');
+  // WebKit leaves the quotes out.
+  await expect(text).toHaveCSS("font-family", /^"?Noto Serif"?$/);
   // Firefox keeps font sizes in 1/64 px.
   expectNear(parseFloat(await text.evaluate((element) => getComputedStyle(element).fontSize)), 20 * pixelsPerPoint, 0.02);
   await expect(text).toHaveCSS("font-weight", "700");
@@ -178,7 +179,7 @@ test("the downloaded PDF has every style where the preview shows it", async ({ p
   }
 
   // The red, underlined line as drawn: its ink is red, and some rows below the baseline are red across the line.
-  const canvas = await openDownloaded(page, file);
+  const { canvas, scale } = await openDownloaded(page, file);
   const area = { x: red.x, y: red.baseline - 30, width: red.width, height: 40 };
   const { inked, ruled } = await canvas.evaluate((c: HTMLCanvasElement, { area, scale, baseline }) => {
     const [x, y, width, height] = [area.x, area.y, area.width, area.height].map((value) => Math.round(value * scale));
@@ -200,7 +201,7 @@ test("the downloaded PDF has every style where the preview shows it", async ({ p
       }
     }
     return { inked: { ink, redInk }, ruled };
-  }, { area, scale: pixelsPerPoint, baseline: red.baseline });
+  }, { area, scale, baseline: red.baseline });
   // Antialiased edges are lighter, and not red enough to count.
   expect(inked.redInk).toBeGreaterThan(0.6 * inked.ink);
   expect(ruled.length).toBeGreaterThan(0);
@@ -263,7 +264,7 @@ test("typing in a menu or the bar doesn't trigger editor shortcuts", async ({ pa
   await bar(page).getByRole("button", { name: "Bold" }).focus();
   await page.keyboard.press("t");
 
-  await expect(tool(page, "Select")).toHaveAttribute("aria-pressed", "true");
+  await expect(tool(page, "Add text")).toHaveAttribute("aria-pressed", "false");
 });
 
 test("clicking outside while in the bar finishes the edit", async ({ page }) => {

@@ -37,7 +37,7 @@ async function openFontsPdf(page: Page) {
 async function ink(page: Page, baseline: number, width = 200 * scale) {
   const pageBox = (await pageImage(page, 1, 1).boundingBox())!;
   const clip = { x: pageBox.x + 66 * scale, y: pageBox.y + (baseline - 14) * scale, width, height: 19 * scale };
-  const png = (await page.screenshot({ clip })).toString("base64");
+  const png = (await page.screenshot({ clip, scale: "css" })).toString("base64");
   return page.evaluate(async (data) => {
     const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
     const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d")!;
@@ -63,7 +63,10 @@ async function ink(page: Page, baseline: number, width = 200 * scale) {
 
 // An unchanged line shows the PDF itself, so each line gets a letter that its font has ("e"), and the part of the line
 // before it must look as it did.
-test("an edited line keeps the look of its text: font, size, width, position and underline", async ({ page }) => {
+test("an edited line keeps the look of its text: font, size, width, position and underline", async ({ page, isMobile }) => {
+  // The lines at 200% are wider than a phone's screen, and its canvas is capped below full size. Desktop Chromium runs
+  // the same engine.
+  test.skip(isMobile, "The zoomed lines don't fit a phone's screen.");
   await openFontsPdf(page);
   await page.mouse.move(0, 0);
   const before = await Promise.all(lines.map((line) => ink(page, line.baseline)));

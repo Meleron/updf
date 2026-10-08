@@ -54,8 +54,8 @@ export async function openAt100Percent(page: Page) {
 }
 
 /**
- * Opens a downloaded copy of simple.pdf, in place of the autosaved original, in the editor at 100% zoom, and returns its page's canvas once it's drawn at
- * that size, where a point is 4/3 of a canvas pixel.
+ * Opens a downloaded copy of simple.pdf, in place of the autosaved original, in the editor at 100% zoom. Returns its
+ * page's canvas once it's drawn at that size, and the canvas pixels per point (4/3 times the device pixel ratio).
  */
 export async function openDownloaded(page: Page, file: { name: string; pdf: Buffer }) {
   await page.goto("/");
@@ -69,8 +69,9 @@ export async function openDownloaded(page: Page, file: { name: string; pdf: Buff
   await expect(page).toHaveURL("/edit");
   await zoomTo100Percent(page);
   const canvas = pageImage(page, 1, 1).locator("canvas");
-  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(Math.floor(595 * pixelsPerPoint));
-  return canvas;
+  const width = Math.floor(595 * pixelsPerPoint * (await page.evaluate(() => devicePixelRatio)));
+  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(width);
+  return { canvas, scale: width / 595 };
 }
 
 /** Clicks the first page at a position in CSS pixels from its top-left corner. */

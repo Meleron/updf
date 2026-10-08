@@ -186,11 +186,11 @@ test("the downloaded PDF has the new text where the preview shows it, and the or
   await expectExportedAsPreviewed(page, page.getByTestId("text-box"), await readText(file.pdf, 1));
 
   // Open the download: past the new text, the original line's area is plain white.
-  const canvas = await openDownloaded(page, file);
+  const { canvas, scale } = await openDownloaded(page, file);
   const inked = await canvas.evaluate((c: HTMLCanvasElement, area) => {
     const { data } = c.getContext("2d")!.getImageData(area.x, area.y, area.width, area.height);
     return data.filter((value, i) => i % 4 !== 3 && value < 250).length;
-  }, { x: Math.round(140 * pixelsPerPoint), y: Math.round(104 * pixelsPerPoint), width: Math.round(170 * pixelsPerPoint), height: Math.round(18 * pixelsPerPoint) });
+  }, { x: Math.round(140 * scale), y: Math.round(104 * scale), width: Math.round(170 * scale), height: Math.round(18 * scale) });
   expect(inked).toBe(0);
   const png = await canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL("image/png"));
   expect(Buffer.from(png.split(",")[1], "base64")).toMatchSnapshot("replaced-line.png");

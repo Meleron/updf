@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { openInEditor, pageImage } from "./helpers";
 
 test.use({ locale: "en-US" });
+test.skip(({ isMobile }) => isMobile, "Phones have no wheel: they zoom with the zoom menu and a pinch.");
 
 function zoomButton(page: Page) {
   return page.getByRole("button", { name: /^Zoom: \d+%$/ });
