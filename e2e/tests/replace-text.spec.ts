@@ -69,10 +69,12 @@ test("clicking a line replaces it: the original text in its own font and size, o
   await expect(bar(page).getByRole("button", { name: /^Font: / })).toHaveCount(0);
   await expect(bar(page).getByRole("spinbutton", { name: "Font size in points" })).toHaveValue("14");
   await expect(bar(page).getByRole("button", { name: "Colour: Black" })).toBeVisible();
-  await expect(page.getByTestId("cover")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  // Until it changes, the line shows as it is in the PDF.
+  await expect(page.getByTestId("cover")).toHaveCount(0);
   // The cursor starts after the text.
   await page.keyboard.type(" Edited.");
   await expect(textBoxInput(page)).toHaveValue("This is a simple one-page document. Edited.");
+  await expect(page.getByTestId("cover")).toHaveCSS("background-color", "rgb(255, 255, 255)");
 
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("text-box")).toHaveText("This is a simple one-page document. Edited.");
@@ -98,13 +100,15 @@ test("the style and colours come from the original line", async ({ page }) => {
   await replaceAt(page, 80, 178, 2);
   await expect(textBoxInput(page)).toHaveValue("White on blue");
   await expect(bar(page).getByRole("button", { name: "Colour: White" })).toBeVisible();
-  await expect(page.getByTestId("cover").last()).toHaveCSS("background-color", "rgb(30, 58, 138)");
+  await page.keyboard.type("!");
+  await expect(page.getByTestId("cover")).toHaveCSS("background-color", "rgb(30, 58, 138)");
 });
 
 test("the cover takes the colour around the line", async ({ page }) => {
   await openFixtureAt100Percent(page, "coloured-background.pdf");
 
   await replaceAt(page, 100, 91);
+  await page.keyboard.type("!");
 
   await expect(page.getByTestId("cover")).toHaveCSS("background-color", "rgb(254, 243, 199)");
 });

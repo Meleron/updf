@@ -28,6 +28,8 @@ type Props = {
   pageSize: { width: number; height: number };
   selected: boolean;
   editing: boolean;
+  /** A replacement still equal to its line, which the PDF shows: the box shows only its caret. */
+  untouched: boolean;
   /** The textarea while editing, so the formatting bar can put the focus back. */
   inputRef: React.RefObject<HTMLTextAreaElement | null> | null;
   onSelect: () => void;
@@ -51,7 +53,8 @@ type Drag = { clientX: number; clientY: number; wasSelected: boolean; to: { x: n
 
 /**
  * A text box drawn the way the backend draws it, so the download matches the screen: the same fonts, the fonts' own
- * line spacing, no kerning or ligatures (PDFsharp applies neither), and the top-left corner at the edit's position.
+ * line spacing, no kerning or ligatures (PDFsharp applies neither) except the PDF's own kerning in its own font, and
+ * the top-left corner at the edit's position.
  * While editing, a textarea lies over a hidden copy of the text, which sizes the box.
  *
  * Browsers round the font's metrics when placing the first baseline, which can put it up to two pixels above the
@@ -63,7 +66,7 @@ type Drag = { clientX: number; clientY: number; wasSelected: boolean; to: { x: n
  * moved by dragging or with the arrow keys, and stays on its page. A drag becomes one move when it ends.
  */
 export function TextBox(props: Props) {
-  const { edit, pdfFont, zoom, pageSize, selected, editing, inputRef, onSelect, onEdit, onChange, onMove, onFinish, onDeselect, onLeave, onDelete } = props;
+  const { edit, pdfFont, zoom, pageSize, selected, editing, untouched, inputRef, onSelect, onEdit, onChange, onMove, onFinish, onDeselect, onLeave, onDelete } = props;
   const t = useTranslations("Editor");
   const warningId = useId();
   const original = drawsInPdfFont(edit, pdfFont);
@@ -116,10 +119,13 @@ export function TextBox(props: Props) {
     ...(original && { textUnderlineOffset: `${face.underlineOffset}em`, textDecorationThickness: `${face.underlineThickness}em` }),
     // The PDF's underline runs through descenders.
     textDecorationSkipInk: "none",
-    color: style.color,
+    // The underline takes the text's colour, so it's hidden with it.
+    color: untouched ? "transparent" : style.color,
+    caretColor: style.color,
     textAlign: style.align,
     lineHeight: face.lineHeight,
-    fontKerning: "none",
+    // The copy of the PDF's font has only the PDF's kerning, which the export writes too.
+    fontKerning: original ? "normal" : "none",
     fontVariantLigatures: "none",
     textRendering: "geometricPrecision",
     whiteSpace: "pre",
@@ -235,10 +241,10 @@ export function TextBox(props: Props) {
           value={text}
           onChange={(e) => onChange(e.target.value.split("\n"))}
           onKeyDown={(e) => {
-            // Esc ends typing, and the box stays selected with the focus on it. An empty box is discarded, so the focus
-            // goes to the pages instead.
+            // Esc ends typing, and the box stays selected with the focus on it. An empty or untouched box is discarded,
+            // so the focus goes to the pages instead.
             if (e.key === "Escape") {
-              if (text.trim() === "") {
+              if (text.trim() === "" || untouched) {
                 onLeave();
               } else {
                 root.current!.focus();

@@ -29,6 +29,8 @@ type Props = {
   edits: TextEdit[];
   selected: string | null;
   editing: string | null;
+  /** The replacement being typed in while it still equals its line: the PDF shows, not its cover and text. */
+  untouched: string | null;
   editingInput: React.RefObject<HTMLTextAreaElement | null>;
   dispatch: React.Dispatch<EditorAction>;
   onReplace: () => void;
@@ -44,7 +46,7 @@ type Props = {
  * colour from the drawn page, which holds only the PDF (edits are separate elements above it).
  */
 export function PageView(props: Props) {
-  const { index, page, size, zoom, root, label, tool, edits, selected, editing, editingInput, dispatch, onReplace, onDelete, onLeave, ref } =
+  const { index, page, size, zoom, root, label, tool, edits, selected, editing, untouched, editingInput, dispatch, onReplace, onDelete, onLeave, ref } =
     props;
   const t = useTranslations("Editor");
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -147,7 +149,8 @@ export function PageView(props: Props) {
       {/* Covers go under every text box, as in the PDF. */}
       {edits.map(
         (edit) =>
-          edit.cover && (
+          edit.cover &&
+          edit.id !== untouched && (
             <div
               key={edit.id}
               data-testid="cover"
@@ -171,6 +174,7 @@ export function PageView(props: Props) {
           pageSize={size}
           selected={edit.id === selected}
           editing={edit.id === editing}
+          untouched={edit.id === untouched}
           inputRef={edit.id === editing ? editingInput : null}
           onSelect={() => dispatch({ type: "select", id: edit.id })}
           onEdit={() => dispatch({ type: "edit", id: edit.id })}

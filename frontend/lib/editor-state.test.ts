@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRedo, canUndo, defaultStyle, editorReducer, initialState, type EditorAction, type EditorState } from "./editor-state";
+import { canRedo, canUndo, defaultStyle, editorReducer, initialState, isUntouched, type EditorAction, type EditorState } from "./editor-state";
 
 function addText(state: EditorState = initialState, id = "a") {
   return editorReducer(state, { type: "addText", id, page: 1, x: 72, y: 96 });
@@ -141,6 +141,47 @@ describe("editorReducer", () => {
 
     expect(editorReducer(state, { type: "delete", id: "b" })).toMatchObject({ edits: [{ id: "a" }], selected: null, editing: null });
     expect(editorReducer(state, { type: "delete", id: "a" })).toMatchObject({ edits: [{ id: "b" }], selected: "b", editing: "b" });
+  });
+
+  it("discards a replacement left as it was made when its edit finishes, recording nothing", () => {
+    const opened = editorReducer(twoBoxes(), { type: "addReplacement", edit: replacement });
+    expect(isUntouched(opened, "r")).toBe(true);
+
+    for (const finish of [{ type: "finishEditing" }, { type: "deselect" }, { type: "select", id: "a" }] as const) {
+      const finished = editorReducer(opened, finish);
+      expect(finished.edits.map((edit) => edit.id), finish.type).toEqual(["a", "b"]);
+    }
+    const finished = editorReducer(opened, { type: "finishEditing" });
+    expect(finished.past).toEqual(twoBoxes().past);
+    expect(finished.selected).toBeNull();
+    // Undo then takes back the step before it.
+    expect(editorReducer(opened, { type: "undo" }).edits.map((edit) => edit.id)).toEqual(["a"]);
+    // Typing and deleting it again leaves it as it was.
+    const retyped = apply(opened, { type: "changeText", id: "r", lines: ["Originals"] }, { type: "changeText", id: "r", lines: ["Original"] });
+    expect(isUntouched(retyped, "r")).toBe(true);
+    expect(editorReducer(retyped, { type: "finishEditing" }).edits).toHaveLength(2);
+  });
+
+  it("keeps a replacement changed in text or style", () => {
+    const opened = editorReducer(initialState, { type: "addReplacement", edit: replacement });
+
+    const changes: EditorAction[] = [
+      { type: "changeText", id: "r", lines: ["Changed"] },
+      { type: "setStyle", style: { bold: true } },
+    ];
+    for (const change of changes) {
+      const changed = editorReducer(opened, change);
+      expect(isUntouched(changed, "r")).toBe(false);
+      expect(editorReducer(changed, { type: "finishEditing" }).edits, change.type).toHaveLength(1);
+    }
+  });
+
+  it("treats only a replacement in its first edit as untouched", () => {
+    const kept = apply(initialState, { type: "addReplacement", edit: replacement }, { type: "changeText", id: "r", lines: ["Changed"] }, { type: "finishEditing" });
+    const changedBack = apply(kept, { type: "edit", id: "r" }, { type: "changeText", id: "r", lines: ["Original"] });
+
+    expect(isUntouched(changedBack, "r")).toBe(false);
+    expect(isUntouched(addText(), "a")).toBe(false);
   });
 
   it("removes a replacement emptied of text, with its cover", () => {
@@ -286,10 +327,10 @@ describe("undo and redo", () => {
   });
 
   it("has nothing to undo after typing that ends with the text it started with", () => {
-    const state = apply(initialState, { type: "addReplacement", edit: replacement }, { type: "finishEditing" }, { type: "edit", id: "r" });
-    const retyped = apply(state, { type: "changeText", id: "r", lines: ["Origina"] }, { type: "changeText", id: "r", lines: ["Original"] }, { type: "deselect" });
+    const state = apply(twoBoxes(), { type: "edit", id: "a" });
+    const retyped = apply(state, { type: "changeText", id: "a", lines: ["A2"] }, { type: "changeText", id: "a", lines: ["A"] }, { type: "deselect" });
 
-    expect(retyped.past).toHaveLength(1);
+    expect(retyped.past).toHaveLength(twoBoxes().past.length);
     expect(retyped.lastStep).toBe(retyped.edits);
   });
 });

@@ -31,11 +31,11 @@ async function openFontsPdf(page: Page) {
 
 /**
  * The ink of a line's area as shown, pdf.js's drawing and the edits above it alike: the bounds of the dark pixels, their
- * total darkness, and the rows dark across most of the line (an underline).
+ * total darkness, and the rows dark across most of the line (an underline). `width` limits the area, in pixels.
  */
-async function ink(page: Page, baseline: number) {
+async function ink(page: Page, baseline: number, width = 200 * scale) {
   const pageBox = (await pageImage(page, 1, 1).boundingBox())!;
-  const clip = { x: pageBox.x + 66 * scale, y: pageBox.y + (baseline - 14) * scale, width: 200 * scale, height: 19 * scale };
+  const clip = { x: pageBox.x + 66 * scale, y: pageBox.y + (baseline - 14) * scale, width, height: 19 * scale };
   const png = (await page.screenshot({ clip })).toString("base64");
   return page.evaluate(async (data) => {
     const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob());
@@ -60,7 +60,9 @@ async function ink(page: Page, baseline: number) {
   }, png);
 }
 
-test("replacing a line without changing it keeps its look: font, size, width, position and underline", async ({ page }) => {
+// An unchanged line shows the PDF itself, so each line gets a letter that its font has ("e"), and the part of the line
+// before it must look as it did.
+test("an edited line keeps the look of its text: font, size, width, position and underline", async ({ page }) => {
   await openFontsPdf(page);
   await page.mouse.move(0, 0);
   const before = await Promise.all(lines.map((line) => ink(page, line.baseline)));
@@ -71,13 +73,15 @@ test("replacing a line without changing it keeps its look: font, size, width, po
     await pageImage(page, 1, 1).click({ position: { x: 80 * scale, y: (line.baseline - 3) * scale } });
     await expect(textBoxInput(page)).toHaveValue(line.text);
     await expect(bar(page).getByRole("button", { name: "Underline" })).toHaveAttribute("aria-pressed", String(i === 2));
+    await page.keyboard.type("e");
     // Finish typing, then deselect, so neither the outline nor the bar is in the picture.
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await expect(bar(page)).toBeHidden();
   }
   await page.mouse.move(0, 0);
-  const after = await Promise.all(lines.map((line) => ink(page, line.baseline)));
+  // Up to the original right edge, and a pixel more, since the new letter may start right there.
+  const after = await Promise.all(lines.map((line, i) => ink(page, line.baseline, before[i].right + 2)));
 
   for (const [i, line] of lines.entries()) {
     const [was, is] = [before[i], after[i]];

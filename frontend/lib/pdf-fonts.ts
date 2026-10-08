@@ -6,9 +6,14 @@ export interface PdfFont {
   name: string;
   /** Each character drawn in the font on the page, and its character code in the font. */
   codes: Map<string, number>;
+  /**
+   * The PDF's kerning: pairs of characters (as one string) and how far the second moves back towards the first, in
+   * thousandths of an em, as in a TJ array.
+   */
+  kerning: Map<string, number>;
   /** The CSS family of the preview's copy of the font. */
   family: string;
-  /** The copy: the font as pdf.js loaded it, with a cmap from the characters to their glyphs. */
+  /** The copy: the font as pdf.js loaded it, with a cmap from the characters to their glyphs and the kerning. */
   data: Uint8Array<ArrayBuffer>;
 }
 
@@ -32,24 +37,21 @@ type OperatorList = { fnArray: number[]; argsArray: unknown[][] };
  * kept when it has its own glyph (not part of a ligature).
  */
 export function readPdfFonts(operators: OperatorList, ops: { setFont: number; showText: number }, fontOf: (id: string) => FontObject): Map<string, PdfFont> {
-  const glyphs = new Map<string, Map<string, Glyph>>();
-  let current: Map<string, Glyph> | undefined;
+  const shownIn = new Map<string, Shown[]>();
+  let current: Shown[] | undefined;
   for (const [i, fn] of operators.fnArray.entries()) {
     if (fn === ops.setFont) {
       const id = operators.argsArray[i][0] as string;
-      current = glyphs.get(id) ?? new Map();
-      glyphs.set(id, current);
+      current = shownIn.get(id) ?? [];
+      shownIn.set(id, current);
     } else if (fn === ops.showText && current) {
-      for (const glyph of operators.argsArray[i][0] as (Glyph | number | null)[]) {
-        if (glyph && typeof glyph === "object" && glyph.isInFont && [...glyph.unicode].length === 1) {
-          current.set(glyph.unicode, glyph);
-        }
-      }
+      current.push(operators.argsArray[i][0] as Shown);
     }
   }
 
   const fonts = new Map<string, PdfFont>();
-  for (const [id, drawn] of glyphs) {
+  for (const [id, shown] of shownIn) {
+    const drawn = new Map(shown.flat().filter(isOwnGlyph).map((glyph) => [glyph.unicode, glyph]));
     const font = fontOf(id);
     const usable = font.name && font.data && !font.missingFile && !font.isType3Font && !font.vertical;
     if (!usable || drawn.size === 0 || [...drawn.values()].some((glyph) => glyph.originalCharCode > (font.composite ? 0xffff : 0xff))) {
@@ -57,14 +59,63 @@ export function readPdfFonts(operators: OperatorList, ops: { setFont: number; sh
     }
     const data = font.data!;
     const toGlyph = new Map([...drawn].map(([text, glyph]) => [text.codePointAt(0)!, glyphId(data, glyph.fontChar.codePointAt(0)!)]));
+    const kerning = kerningPairs(shown);
+    const glyphOf = (character: string) => toGlyph.get(character.codePointAt(0)!)!;
+    const glyphKerning = [...kerning].map(([pair, value]): [number, number, number] => {
+      const [left, right] = [...pair];
+      return [glyphOf(left), glyphOf(right), value];
+    });
     fonts.set(id, {
       name: font.name!,
       codes: new Map([...drawn].map(([text, glyph]) => [text, glyph.originalCharCode])),
+      kerning,
       family: `updf-${font.loadedName ?? id}`,
-      data: withCmap(data, toGlyph),
+      data: withCmap(data, toGlyph, glyphKerning),
     });
   }
   return fonts;
+}
+
+type Shown = (Glyph | number | null)[];
+
+/** A glyph of one character of its own (not part of a ligature) that the font has. */
+function isOwnGlyph(glyph: Glyph | number | null): glyph is Glyph {
+  return !!glyph && typeof glyph === "object" && glyph.isInFont && [...glyph.unicode].length === 1;
+}
+
+/** Kerning goes from moving a letter a quarter of an em closer to a tenth further, beyond which it's positioning. */
+const kerningRange = { min: -100, max: 250 };
+
+/**
+ * The kerning in a font's shown text: the adjustment between two characters, from the numbers between glyphs in TJ
+ * arrays. A pair is kept only if it's the same each time, since justification and word positioning vary. Pairs with a
+ * space are left out: justification widens spaces, and browsers shape words separately, so they never kern a space.
+ */
+export function kerningPairs(shown: Shown[]): Map<string, number> {
+  const seen = new Map<string, number | null>();
+  for (const items of shown) {
+    let previous: Glyph | null = null;
+    let adjustment = 0;
+    for (const item of items) {
+      if (typeof item === "number") {
+        adjustment += item;
+        continue;
+      }
+      const glyph = isOwnGlyph(item) && item.unicode !== " " ? item : null;
+      if (previous && glyph) {
+        const pair = previous.unicode + glyph.unicode;
+        const value = seen.get(pair);
+        seen.set(pair, value === undefined || value === adjustment ? adjustment : null);
+      }
+      [previous, adjustment] = [glyph, 0];
+    }
+  }
+  return new Map(
+    [...seen].filter((entry): entry is [string, number] => {
+      const value = entry[1];
+      return value !== null && value !== 0 && value >= kerningRange.min && value <= kerningRange.max;
+    }),
+  );
 }
 
 /**
@@ -82,10 +133,17 @@ export function drawsInPdfFont(edit: Pick<TextEdit, "lines" | "style" | "pdfFont
   );
 }
 
-/** An edit as the export sends it: with each line's character codes when it's drawn in its original font, else without the font. */
+/**
+ * An edit as the export sends it: with each line's character codes and the kerning after each character when it's
+ * drawn in its original font, else without the font.
+ */
 export function forExport(edit: TextEdit, font: PdfFont | undefined): TextEdit {
   const { pdfFont, ...rest } = edit;
-  return drawsInPdfFont(edit, font) ? { ...rest, pdfFont: { ...pdfFont!, codes: characterCodes(edit.lines, font) } } : rest;
+  if (!drawsInPdfFont(edit, font)) {
+    return rest;
+  }
+  const kerning = edit.lines.map((line) => [...line].map((character, i, characters) => font.kerning.get(character + (characters[i + 1] ?? "")) ?? 0));
+  return { ...rest, pdfFont: { ...pdfFont!, codes: characterCodes(edit.lines, font), kerning } };
 }
 
 const addedFaces = new Set<string>();
@@ -154,8 +212,11 @@ export function glyphId(font: Uint8Array, codePoint: number): number {
   return 0;
 }
 
-/** A copy of a font whose only cmap is a Windows Unicode (format 4) one, mapping each code point to its glyph. */
-export function withCmap(font: Uint8Array, toGlyph: Map<number, number>): Uint8Array<ArrayBuffer> {
+/**
+ * A copy of a font whose only cmap is a Windows Unicode (format 4) one, mapping each code point to its glyph, and whose
+ * kern table has the given pairs of glyphs with their TJ adjustments.
+ */
+export function withCmap(font: Uint8Array, toGlyph: Map<number, number>, kerning: [number, number, number][] = []): Uint8Array<ArrayBuffer> {
   const codePoints = [...toGlyph.keys()].filter((codePoint) => codePoint < 0xffff).sort((a, b) => a - b);
   // One segment per character, then the closing segment that format 4 requires.
   const segments = [...codePoints.map((codePoint) => [codePoint, (toGlyph.get(codePoint)! - codePoint) & 0xffff]), [0xffff, 1]];
@@ -180,7 +241,30 @@ export function withCmap(font: Uint8Array, toGlyph: Map<number, number>): Uint8A
 
   const all = tables(font);
   all.set("cmap", new Uint8Array(cmap.buffer));
+  all.delete("kern");
+  if (kerning.length > 0) {
+    const unitsPerEm = new DataView(all.get("head")!.buffer, all.get("head")!.byteOffset).getUint16(18);
+    all.set("kern", kernTable(kerning, unitsPerEm));
+  }
   return sfnt(new DataView(font.buffer, font.byteOffset).getUint32(0), all);
+}
+
+/** A kern table (version 0, one horizontal format 0 subtable) from pairs of glyphs and their TJ adjustments. */
+function kernTable(kerning: [number, number, number][], unitsPerEm: number): Uint8Array {
+  // Pairs must be sorted by glyphs, once each.
+  const pairs = [...new Map(kerning.map(([left, right, value]) => [left * 0x10000 + right, value]))].sort(([a], [b]) => a - b);
+  const view = new DataView(new ArrayBuffer(4 + 14 + 6 * pairs.length));
+  const searchPower = 2 ** Math.floor(Math.log2(pairs.length));
+  // Table version 0 with one subtable: version 0, its length, and coverage 1 (horizontal kerning, format 0).
+  [0, 1, 0, 14 + 6 * pairs.length, 1, pairs.length, 6 * searchPower, Math.log2(searchPower), 6 * (pairs.length - searchPower)].forEach(
+    (value, i) => view.setUint16(2 * i, value),
+  );
+  pairs.forEach(([glyphs, value], i) => {
+    view.setUint32(18 + 6 * i, glyphs);
+    // A positive TJ adjustment moves the next glyph back: negative kerning.
+    view.setInt16(22 + 6 * i, Math.round((-value * unitsPerEm) / 1000));
+  });
+  return new Uint8Array(view.buffer);
 }
 
 /** An OpenType font file from its tables, each 4-byte aligned, with their checksums. */

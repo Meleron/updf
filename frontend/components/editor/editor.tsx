@@ -15,7 +15,7 @@ import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
 import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
 import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
-import { canRedo, canUndo, editorReducer, initialState } from "@/lib/editor-state";
+import { canRedo, canUndo, editorReducer, initialState, isUntouched } from "@/lib/editor-state";
 import { fitWidth, wheelZoom } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -105,6 +105,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [state, dispatch] = useReducer(editorReducer, initialState);
   const selected = state.edits.find((edit) => edit.id === state.selected);
+  const untouched = state.untouched && isUntouched(state, state.untouched.id) ? state.untouched.id : null;
   const editingInput = useRef<HTMLTextAreaElement>(null);
   const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
@@ -322,6 +323,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                     edits={state.edits.filter((edit) => edit.page === i)}
                     selected={state.selected}
                     editing={state.editing}
+                    untouched={untouched}
                     editingInput={editingInput}
                     dispatch={dispatch}
                     onReplace={showReplaceHint}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+ <office:automatic-styles>
+  <style:style style:name="S" style:family="paragraph"><style:text-properties style:font-name="Liberation Sans" fo:font-family="'Liberation Sans'" fo:font-size="12pt" style:letter-kerning="true"/></style:style>
+  <style:style style:name="J" style:family="paragraph"><style:paragraph-properties fo:text-align="justify"/><style:text-properties fo:font-family="'Liberation Serif'" fo:font-size="12pt" style:letter-kerning="true"/></style:style>
+  <style:style style:name="U" style:family="text"><style:text-properties style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"/></style:style>
+  <style:style style:name="R" style:family="paragraph"><style:text-properties fo:font-family="'Liberation Serif'" fo:font-size="12pt" style:letter-kerning="true"/></style:style>
+ </office:automatic-styles>
+ <office:body><office:text>
+  <text:p text:style-name="S">AVATAR Tower WAVE Yes, To You. Plain text line here.</text:p>
+  <text:p text:style-name="R">AVATAR Tower WAVE Yes, To You. Plain text line here.</text:p>
+  <text:p text:style-name="S">minimum illumination without kerning pairs</text:p>
+  <text:p text:style-name="S">You can edit these lines</text:p>
+  <text:p text:style-name="J">This paragraph is justified, so the spaces between its words stretch to fill the whole width of the line, wider than plain spacing.</text:p>
+  <text:p text:style-name="S"><text:span text:style-name="U">Underlined Tower line</text:span></text:p>
+ </office:text></office:body>
+</office:document>

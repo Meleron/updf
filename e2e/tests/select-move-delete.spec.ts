@@ -136,6 +136,8 @@ test("Esc on an empty new box discards it and puts the focus on the pages", asyn
 test("only a replacement's text moves: the cover stays over the original", async ({ page }) => {
   await openAt100Percent(page);
   await pageImage(page, 1, 1).click({ position: { x: 100 * pixelsPerPoint, y: 113 * pixelsPerPoint } });
+  // An unchanged replacement is discarded when its edit finishes.
+  await page.keyboard.type("!");
   await page.keyboard.press("Escape");
   const cover = page.getByTestId("cover");
   const coverAt = await position(cover);

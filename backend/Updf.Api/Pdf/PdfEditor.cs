@@ -95,10 +95,12 @@ public sealed class PdfEditor
         var resources = new Dictionary<string, string>();
         foreach (var (edit, font, space) in texts)
         {
-            var (style, codes) = (edit.Style, edit.PdfFont!.Codes);
+            var (style, codes, kerning) = (edit.Style, edit.PdfFont!.Codes, edit.PdfFont.Kerning);
             var resource = resources.TryGetValue(edit.PdfFont.Name, out var added) ? added : resources[edit.PdfFont.Name] = font.AddTo(page);
             var metrics = FontFaces.Metrics(FontFaces.Find(style.Font, style.Bold, style.Italic)!.Value.Name);
-            var widths = codes.Select(line => line.Sum(code => code < 0 ? space : font.Width(code)) * style.Size).ToList();
+            var widths = codes
+                .Select((line, i) => (line.Sum(code => code < 0 ? space : font.Width(code)) - (kerning?[i].Sum() ?? 0) / 1000) * style.Size)
+                .ToList();
             var boxWidth = widths.DefaultIfEmpty(0).Max();
             var color = ToColor(style.Color);
 
@@ -115,7 +117,7 @@ public sealed class PdfEditor
                 }
                 var x = edit.X + (boxWidth - widths[i]) * AlignShare(style.Align);
                 var y = edit.Y + (metrics.Ascent + i * metrics.LineHeight) * style.Size;
-                content.Append($"1 0 0 -1 {N(x)} {N(y)} Tm {font.ShowText(codes[i], space)} TJ\n");
+                content.Append($"1 0 0 -1 {N(x)} {N(y)} Tm {font.ShowText(codes[i], kerning?[i], space)} TJ\n");
                 underlines.Append($"{N(x)} {N(y + metrics.UnderlineOffset * style.Size)} {N(widths[i])} {N(metrics.UnderlineThickness * style.Size)} re f\n");
             }
             content.Append("ET\n");

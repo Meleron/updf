@@ -58,20 +58,24 @@ public sealed class OriginalFont
     }
 
     /// <summary>A TJ operand for a line: its codes as hex strings, with each space the font lacks as a move of the given width.</summary>
-    public string ShowText(IReadOnlyList<int> codes, double spaceWidth)
+    public string ShowText(IReadOnlyList<int> codes, IReadOnlyList<double>? kerning, double spaceWidth)
     {
         var text = new StringBuilder("[");
         var open = false;
-        foreach (var code in codes)
+        for (var i = 0; i < codes.Count; i++)
         {
-            if (code < 0)
+            // A space the font lacks moves the text instead, and kerning moves the next character back.
+            var adjustment = (codes[i] < 0 ? -spaceWidth * 1000 : 0) + (kerning?[i] ?? 0);
+            if (codes[i] >= 0)
             {
-                text.Append(open ? "> " : "").Append(Number(-spaceWidth * 1000)).Append(' ');
-                open = false;
-                continue;
+                text.Append(open ? "" : "<").Append(codes[i].ToString(_codeBytes == 2 ? "X4" : "X2", CultureInfo.InvariantCulture));
+                open = true;
             }
-            text.Append(open ? "" : "<").Append(code.ToString(_codeBytes == 2 ? "X4" : "X2", CultureInfo.InvariantCulture));
-            open = true;
+            if (adjustment != 0)
+            {
+                text.Append(open ? "> " : "").Append(Number(adjustment)).Append(' ');
+                open = false;
+            }
         }
         return text.Append(open ? ">]" : "]").ToString();
     }

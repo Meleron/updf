@@ -21,6 +21,12 @@ export interface EditorState {
   lastStep: TextEdit[];
   /** The box the last step moved with the arrow keys, so the next press joins that step. */
   nudged: string | null;
+  /**
+   * A replacement as it was made, until its first edit finishes. While the box still equals it, the PDF shows instead
+   * of the box, since the box can't place letters exactly as the PDF does (kerning, justified spacing). Finished
+   * unchanged, it's discarded.
+   */
+  untouched: TextEdit | null;
 }
 
 export type EditorAction =
@@ -62,7 +68,14 @@ export const initialState: EditorState = {
   future: [],
   lastStep: noEdits,
   nudged: null,
+  untouched: null,
 };
+
+/** Whether a box is a replacement still being typed in that equals the line it was made from. */
+export function isUntouched(state: EditorState, id: string): boolean {
+  const edit = state.edits.find((e) => e.id === id);
+  return !!edit && state.untouched?.id === id && JSON.stringify(edit) === JSON.stringify(state.untouched);
+}
 
 /** Whether there's a step to undo, counting the edit in progress, which undo finishes first. */
 export function canUndo(state: EditorState): boolean {
@@ -88,18 +101,19 @@ function record(state: EditorState, joinLast = false): EditorState {
   return { ...state, past: joinLast ? state.past : [...state.past, state.lastStep], future: [], lastStep: state.edits };
 }
 
-/** Ends typing in a box, which stays selected, and records the edit. A box left empty is discarded. */
+/** Ends typing in a box, which stays selected, and records the edit. A box left empty or untouched is discarded. */
 function finishEditing(state: EditorState): EditorState {
   const edit = state.edits.find((e) => e.id === state.editing);
   if (!edit) {
     return state;
   }
-  const empty = edit.lines.every((line) => line.trim() === "");
+  const discard = edit.lines.every((line) => line.trim() === "") || isUntouched(state, edit.id);
   return record({
     ...state,
-    edits: empty ? state.edits.filter((e) => e !== edit) : state.edits,
-    selected: empty ? null : state.selected,
+    edits: discard ? state.edits.filter((e) => e !== edit) : state.edits,
+    selected: discard ? null : state.selected,
     editing: null,
+    untouched: null,
   });
 }
 
@@ -140,7 +154,7 @@ function apply(state: EditorState, action: Exclude<EditorAction, { type: "undo" 
     case "addReplacement": {
       // A replacement has the style of the text it replaces, which isn't a style the user chose.
       const finished = finishEditing(state);
-      return { ...finished, edits: [...finished.edits, action.edit], selected: action.edit.id, editing: action.edit.id };
+      return { ...finished, edits: [...finished.edits, action.edit], selected: action.edit.id, editing: action.edit.id, untouched: action.edit };
     }
     case "select":
       if (action.id === state.selected) {

@@ -26,8 +26,9 @@ public sealed record Cover(double X, double Y, double Width, double Height, stri
 
 /// <summary>
 /// A font already in the PDF to draw a replacement in, by its name, with each line's character codes in it. -1 is a
-/// space the font lacks, which takes the space of the style's font.
+/// space the font lacks, which takes the space of the style's font. <c>Kerning</c> has the PDF's kerning after each
+/// character, in thousandths of an em as in a TJ array (positive moves the next character back).
 /// </summary>
-public sealed record PdfFont(string Name, IReadOnlyList<IReadOnlyList<int>> Codes);
+public sealed record PdfFont(string Name, IReadOnlyList<IReadOnlyList<int>> Codes, IReadOnlyList<IReadOnlyList<double>>? Kerning = null);
 
 public enum TextAlign { Left, Center, Right }

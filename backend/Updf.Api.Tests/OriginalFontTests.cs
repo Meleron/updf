@@ -43,6 +43,48 @@ public class OriginalFontTests
     }
 
     [Fact]
+    public void A_kerned_line_is_written_with_its_kerning()
+    {
+        // kerned.pdf's fourth line, "You can edit these lines", as LibreOffice wrote it: one-byte codes, with "o" moved
+        // towards "Y" in the TJ array.
+        const string line = "You can edit these lines";
+        var kerned = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "kerned.pdf"));
+        var shown = ContentReader.ReadContent(PdfReader.Open(new MemoryStream(kerned)).Pages[0]).OfType<COperator>()
+            .Where(op => op.OpCode.OpCodeName is OpCodeName.Tj or OpCodeName.TJ).ElementAt(3).Operands[0];
+        var (codes, kerning) = (new List<int>(), new List<double>());
+        foreach (var item in shown is CArray array ? array : [shown])
+        {
+            if (item is CString text)
+            {
+                codes.AddRange(text.Value.Select(c => (int)c));
+                kerning.AddRange(text.Value.Select(_ => 0.0));
+            }
+            else
+            {
+                kerning[^1] = item is CInteger integer ? integer.Value : ((CReal)item).Value;
+            }
+        }
+        Assert.Equal(line.Length, codes.Count);
+        Assert.Contains(kerning, k => k > 0);
+        var original = Letters(kerned).GroupBy(l => Math.Round(l.StartBaseLine.Y, 1))
+            .Select(g => g.ToList()).Single(g => string.Concat(g.Select(l => l.Value)) == line.Replace(" ", ""));
+        var page = PigDocument.Open(kerned).GetPage(1);
+        var edit = Edit(0, original[0].StartBaseLine.X, page.Height - original[0].StartBaseLine.Y - 12 * ArimoAscent, [line], Style("Arimo", size: 12)) with
+        {
+            PdfFont = new PdfFont(original[0].FontName!, [codes], [kerning]),
+        };
+
+        var drawn = Letters(Export(kerned, edit)).TakeLast(original.Count).ToList();
+
+        Assert.All(drawn.Zip(original), pair =>
+        {
+            Assert.Equal(pair.Second.Value, pair.First.Value);
+            Assert.Equal(pair.Second.StartBaseLine.X, pair.First.StartBaseLine.X, Tolerance);
+            Assert.Equal(pair.Second.StartBaseLine.Y, pair.First.StartBaseLine.Y, Tolerance);
+        });
+    }
+
+    [Fact]
     public void Text_is_written_in_a_composite_font_with_two_byte_codes()
     {
         // The editor's own output uses Identity-H composite fonts.

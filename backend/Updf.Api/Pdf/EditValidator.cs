@@ -43,11 +43,14 @@ public static class EditValidator
         && (edit.Cover is null || (edit.Cover.Width > 0 && edit.Cover.Height > 0 && IsColor(edit.Cover.Color)))
         && (edit.PdfFont is null || IsValid(edit.PdfFont, edit.Lines));
 
-    // One code per character, each a space (-1) or a one- or two-byte code.
+    // One code per character, each a space (-1) or a one- or two-byte code, and kerning after each, less than an em.
     private static bool IsValid(PdfFont font, IReadOnlyList<string> lines) =>
         font.Name.Length is > 0 and <= 127
         && font.Codes.Count == lines.Count
-        && font.Codes.Zip(lines).All(pair => pair.First.Count == pair.Second.EnumerateRunes().Count() && pair.First.All(c => c is >= -1 and <= 0xFFFF));
+        && font.Codes.Zip(lines).All(pair => pair.First.Count == pair.Second.EnumerateRunes().Count() && pair.First.All(c => c is >= -1 and <= 0xFFFF))
+        && (font.Kerning is null
+            || (font.Kerning.Count == font.Codes.Count
+                && font.Kerning.Zip(font.Codes).All(pair => pair.First.Count == pair.Second.Count && pair.First.All(k => k is >= -1000 and <= 1000))));
 
     private static bool IsColor(string color) => color.Length == 7 && color[0] == '#' && color[1..].All(char.IsAsciiHexDigit);
 

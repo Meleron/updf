@@ -114,6 +114,7 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 - In Select mode, hovering over an existing line shows a faint outline.
 - Clicking a line creates a replacement for the whole line. The cover takes the line's area (with a small margin) and its colour from the pixels around the line in the page image.
 - The box starts with the original text in the original font and size. Its font can't be changed. An underlined line starts underlined.
+- Edited text in the original font keeps the PDF's kerning between letters (not next to spaces). Until the text or style changes, the line shows exactly as in the PDF (the box can't reproduce justified spacing or kerned spaces), and a replacement left unchanged is discarded when its edit finishes, leaving nothing to undo.
 - The new text can be moved, but the cover stays over the original.
 - Deleting a replacement brings the original line back.
 - The first replacement in a session shows a one-time hint: "Replaced text is hidden, not removed. Don't use this to remove sensitive information."
