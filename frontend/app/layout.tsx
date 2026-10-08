@@ -7,6 +7,8 @@ import { connection } from "next/server";
 import { BackendUrlProvider } from "@/components/backend-url";
 import { OpenDocumentProvider } from "@/components/open-document";
 import "./globals.css";
+// The faces of text boxes, the same files the backend draws with.
+import "./fonts.css";
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin", "latin-ext"] });
 

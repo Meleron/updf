@@ -6,8 +6,9 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { editUi, leavesEdit } from "@/components/editor/edit-focus";
 import { toPixels } from "@/lib/coordinates";
 import type { TextEdit } from "@/lib/edits";
-import { cssFontFamilies, notoAscent, notoLineHeight } from "@/lib/fonts";
+import { faceFor } from "@/lib/fonts";
 import { unsupportedCharacters } from "@/lib/formatting";
+import { drawsInPdfFont, type PdfFont } from "@/lib/pdf-fonts";
 import { cn } from "@/lib/utils";
 
 /** The id of the element describing how to use a text box from the keyboard (rendered by the editor). */
@@ -20,6 +21,8 @@ export function textBoxId(editId: string): string {
 
 type Props = {
   edit: TextEdit;
+  /** The replacement's original font, once the page's fonts are known. */
+  pdfFont: PdfFont | undefined;
   zoom: number;
   /** The page's displayed size in points: the box can't be moved off it. */
   pageSize: { width: number; height: number };
@@ -59,13 +62,15 @@ type Drag = { clientX: number; clientY: number; wasSelected: boolean; to: { x: n
  * moved by dragging or with the arrow keys, and stays on its page. A drag becomes one move when it ends.
  */
 export function TextBox(props: Props) {
-  const { edit, zoom, pageSize, selected, editing, inputRef, onSelect, onEdit, onChange, onMove, onFinish, onDeselect, onLeave, onDelete } = props;
+  const { edit, pdfFont, zoom, pageSize, selected, editing, inputRef, onSelect, onEdit, onChange, onMove, onFinish, onDeselect, onLeave, onDelete } = props;
   const t = useTranslations("Editor");
   const warningId = useId();
-  const unsupported = unsupportedCharacters(edit.lines, edit.style);
+  const original = drawsInPdfFont(edit, pdfFont);
+  const unsupported = original ? [] : unsupportedCharacters(edit.lines, edit.style);
   const { style } = edit;
   const text = edit.lines.join("\n");
   const fontSize = toPixels(style.size, zoom);
+  const face = faceFor(style);
   const baseline = useRef<HTMLSpanElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -89,7 +94,7 @@ export function TextBox(props: Props) {
         return;
       }
       const marker = baseline.current!;
-      setShift(fontSize * notoAscent - (marker.getBoundingClientRect().top - marker.parentElement!.getBoundingClientRect().top));
+      setShift(fontSize * face.ascent - (marker.getBoundingClientRect().top - marker.parentElement!.getBoundingClientRect().top));
     }
     measure();
     // Until the font has loaded, the baseline is the fallback font's.
@@ -97,19 +102,22 @@ export function TextBox(props: Props) {
     return () => {
       active = false;
     };
-  }, [fontSize, style.font, style.bold, style.italic]);
+  }, [fontSize, face, original]);
 
+  // In its original font, the box keeps that font's glyphs and weight. A space the font lacks comes from the regular
+  // face of the box's font, as on the backend, which also draws the underline from the box font's metrics.
   const font: React.CSSProperties = {
-    fontFamily: cssFontFamilies[style.font],
+    fontFamily: original ? `"${pdfFont!.family}", "${style.font}"` : `"${style.font}"`,
     fontSize,
-    fontWeight: style.bold ? 700 : 400,
-    fontStyle: style.italic ? "italic" : "normal",
+    fontWeight: style.bold && !original ? 700 : 400,
+    fontStyle: style.italic && !original ? "italic" : "normal",
     textDecoration: style.underline ? "underline" : "none",
+    ...(original && { textUnderlineOffset: `${face.underlineOffset}em`, textDecorationThickness: `${face.underlineThickness}em` }),
     // The PDF's underline runs through descenders.
     textDecorationSkipInk: "none",
     color: style.color,
     textAlign: style.align,
-    lineHeight: notoLineHeight,
+    lineHeight: face.lineHeight,
     fontKerning: "none",
     fontVariantLigatures: "none",
     textRendering: "geometricPrecision",

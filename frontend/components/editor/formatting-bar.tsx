@@ -16,11 +16,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { TextStyle } from "@/lib/edits";
-import { cssFontFamilies } from "@/lib/fonts";
+import { boxFonts } from "@/lib/fonts";
 import { maxSize, minSize, palette } from "@/lib/formatting";
 
 type Props = {
   style: TextStyle;
+  /** A replacement keeps the font of the text it replaces. */
+  fontLocked: boolean;
   onStyle: (style: Partial<TextStyle>) => void;
   /** Puts the focus back in the text box, so typing goes on. */
   onReturn: () => void;
@@ -31,7 +33,6 @@ type Props = {
   onDelete: () => void;
 };
 
-const fonts = ["sans", "serif", "mono"] as const;
 const alignments = [
   ["left", AlignLeft],
   ["center", AlignCenter],
@@ -46,12 +47,13 @@ function Separator() {
  * Formats the selected text box. The bar, its menus and the text box form one selection: focus moves between them
  * freely, and the box is deselected when it goes anywhere else or on Esc.
  */
-export function FormattingBar({ style, onStyle, onReturn, onDeselect, onLeave, onDelete }: Props) {
+export function FormattingBar({ style, fontLocked, onStyle, onReturn, onDeselect, onLeave, onDelete }: Props) {
   const t = useTranslations("Formatting");
   const customColor = useRef<HTMLInputElement>(null);
   const pickingCustomColor = useRef(false);
   const preset = palette.find((entry) => entry.color === style.color);
   const colorName = preset ? t(`colors.${preset.name}`) : t("customColorValue", { value: style.color });
+  const font = (Object.keys(boxFonts) as (keyof typeof boxFonts)[]).find((key) => boxFonts[key] === style.font) ?? "sans";
 
   // A menu returns the focus to the text box when it closes, or to the colour picker when that was chosen.
   function menuClosed(event: Event) {
@@ -81,23 +83,25 @@ export function FormattingBar({ style, onStyle, onReturn, onDeselect, onLeave, o
       onKeyDown={(event) => event.key === "Escape" && !event.defaultPrevented && onLeave()}
       className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border bg-surface p-1 shadow-lg"
     >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="shrink-0" aria-label={t("font", { font: t(`fonts.${style.font}`) })}>
-            {t(`fonts.${style.font}`)}
-            <ChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent {...editUi} align="start" className="w-auto" onCloseAutoFocus={menuClosed}>
-          <DropdownMenuRadioGroup value={style.font} onValueChange={(font) => onStyle({ font: font as TextStyle["font"] })}>
-            {fonts.map((font) => (
-              <DropdownMenuRadioItem key={font} value={font} style={{ fontFamily: cssFontFamilies[font] }}>
-                {t(`fonts.${font}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {!fontLocked && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="shrink-0" aria-label={t("font", { font: t(`fonts.${font}`) })}>
+              {t(`fonts.${font}`)}
+              <ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent {...editUi} align="start" className="w-auto" onCloseAutoFocus={menuClosed}>
+            <DropdownMenuRadioGroup value={style.font} onValueChange={(value) => onStyle({ font: value })}>
+              {Object.entries(boxFonts).map(([key, family]) => (
+                <DropdownMenuRadioItem key={key} value={family} style={{ fontFamily: `"${family}"` }}>
+                  {t(`fonts.${key as keyof typeof boxFonts}`)}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <SizeField size={style.size} onSize={(size) => onStyle({ size })} onDone={onReturn} label={t("size")} />
       <Separator />
       <ToggleButton label={t("bold")} pressed={style.bold} onClick={() => onStyle({ bold: !style.bold })}>

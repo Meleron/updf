@@ -57,12 +57,14 @@ public class PdfEditorTests
     }
 
     [Theory]
-    [InlineData(FontKind.Sans, false, false, "Noto Sans Regular")]
-    [InlineData(FontKind.Sans, true, true, "Noto Sans,BoldItalic")]
-    [InlineData(FontKind.Serif, false, true, "Noto Serif,Italic")]
-    [InlineData(FontKind.Serif, true, false, "Noto Serif,Bold")]
-    [InlineData(FontKind.Mono, true, false, "Noto Sans Mono,Bold")]
-    public void Text_uses_the_chosen_font(FontKind font, bool bold, bool italic, string fontName)
+    [InlineData("Noto Sans", false, false, "Noto Sans Regular")]
+    [InlineData("Noto Sans", true, true, "Noto Sans,BoldItalic")]
+    [InlineData("Noto Serif", false, true, "Noto Serif,Italic")]
+    [InlineData("Noto Serif", true, false, "Noto Serif,Bold")]
+    [InlineData("Noto Sans Mono", true, false, "Noto Sans Mono,Bold")]
+    [InlineData("Arimo", false, false, "Arimo Regular")]
+    [InlineData("Source Sans 3", true, true, "Source Sans 3,BoldItalic")]
+    public void Text_uses_the_chosen_font(string font, bool bold, bool italic, string fontName)
     {
         using var output = Export(Blank(1), Edit(0, 40, 60, ["Abc"], Style(font, bold: bold, italic: italic)));
 
@@ -73,8 +75,8 @@ public class PdfEditorTests
     public void Mono_italic_is_slanted()
     {
         using var output = Export(Blank(1),
-            Edit(0, 40, 60, ["I"], Style(FontKind.Mono)),
-            Edit(0, 40, 160, ["I"], Style(FontKind.Mono, italic: true)));
+            Edit(0, 40, 60, ["I"], Style("Noto Sans Mono")),
+            Edit(0, 40, 160, ["I"], Style("Noto Sans Mono", italic: true)));
         var (upright, slanted) = (output.GetPage(1).Letters[0], output.GetPage(1).Letters[1]);
 
         Assert.Equal(upright.BoundingBox.TopLeft.X, upright.BoundingBox.BottomLeft.X, Tolerance);
@@ -147,6 +149,18 @@ public class PdfEditorTests
     }
 
     [Fact]
+    public void Line_spacing_and_ascent_come_from_the_face_hhea_table()
+    {
+        using var output = Export(Blank(1), Edit(0, 40, 60, ["A", "B"], Style("Arimo")));
+        var page = output.GetPage(1);
+
+        var a = Display(page, page.Letters[0].StartBaseLine).Y;
+        var b = Display(page, page.Letters[1].StartBaseLine).Y;
+        Assert.Equal(60 + 20 * 1854 / 2048.0, a, Tolerance);
+        Assert.Equal(20 * (1854 + 434 + 67) / 2048.0, b - a, Tolerance);
+    }
+
+    [Fact]
     public void Cover_is_drawn_in_its_colour_at_its_position()
     {
         using var output = Export(Blank(1), Edit(0, 40, 60, ["New"], cover: new Cover(30, 50, 200, 30, "#FF0000")));
@@ -177,8 +191,8 @@ public class PdfEditorTests
         string[] lines = ["Zażółć gęślą jaźń ZAŻÓŁĆ", "Съешь же ещё этих булок", "Ξεσκεπάζω την ψυχοφθόρα"];
         var pdf = _editor.Apply(Open(Blank(1)), Edits(
             Edit(0, 40, 60, lines),
-            Edit(0, 40, 200, lines, Style(FontKind.Serif, italic: true)),
-            Edit(0, 40, 340, lines, Style(FontKind.Mono, bold: true))), TestContext.Current.CancellationToken);
+            Edit(0, 40, 200, lines, Style("Noto Serif", italic: true)),
+            Edit(0, 40, 340, lines, Style("Noto Sans Mono", bold: true))), TestContext.Current.CancellationToken);
 
         using var output = PigDocument.Open(pdf);
         var words = output.GetPage(1).GetWords().Select(w => w.Text);

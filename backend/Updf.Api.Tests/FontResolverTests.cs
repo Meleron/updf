@@ -2,19 +2,18 @@ using Updf.Api.Pdf;
 
 namespace Updf.Api.Tests;
 
-public class NotoFontResolverTests
+public class FontResolverTests
 {
-    private readonly NotoFontResolver _resolver = new();
+    private readonly FontResolver _resolver = new();
 
     [Theory]
     [InlineData("Noto Sans", false, false, "NotoSans-Regular")]
     [InlineData("Noto Sans", true, false, "NotoSans-Bold")]
     [InlineData("Noto Sans", false, true, "NotoSans-Italic")]
     [InlineData("Noto Sans", true, true, "NotoSans-BoldItalic")]
-    [InlineData("Noto Serif", false, false, "NotoSerif-Regular")]
-    [InlineData("Noto Serif", true, true, "NotoSerif-BoldItalic")]
-    [InlineData("Noto Sans Mono", false, false, "NotoSansMono-Regular")]
     [InlineData("Noto Sans Mono", true, false, "NotoSansMono-Bold")]
+    [InlineData("Tinos", false, true, "Tinos-Italic")]
+    [InlineData("IBM Plex Sans", true, true, "IBMPlexSans-BoldItalic")]
     public void Resolves_each_style_to_its_own_face(string family, bool bold, bool italic, string face)
     {
         var info = _resolver.ResolveTypeface(family, bold, italic);
@@ -28,7 +27,7 @@ public class NotoFontResolverTests
     [Theory]
     [InlineData(false, "NotoSansMono-Regular")]
     [InlineData(true, "NotoSansMono-Bold")]
-    public void Simulates_mono_italic_because_there_is_no_italic_face(bool bold, string face)
+    public void Simulates_italic_for_a_family_without_italic_faces(bool bold, string face)
     {
         var info = _resolver.ResolveTypeface("Noto Sans Mono", bold, italic: true);
 
@@ -37,10 +36,12 @@ public class NotoFontResolverTests
         Assert.True(info.MustSimulateItalic);
     }
 
-    [Fact]
-    public void Returns_null_for_unknown_families()
+    [Theory]
+    [InlineData("Arial")]
+    [InlineData("../fonts/NotoSans")]
+    public void Returns_null_for_unknown_families(string family)
     {
-        Assert.Null(_resolver.ResolveTypeface("Arial", false, false));
+        Assert.Null(_resolver.ResolveTypeface(family, false, false));
     }
 
     [Fact]

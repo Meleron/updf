@@ -9,6 +9,8 @@ namespace Updf.Api.Tests;
 
 public class ExportEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
+    private static readonly string[] Fonts = ["Noto Sans", "Noto Serif", "Noto Sans Mono"];
+
     [Theory]
     [InlineData("report.pdf", "report-edited.pdf")]
     [InlineData("Raport roczny – zażółć gęślą jaźń.pdf", "Raport roczny – zażółć gęślą jaźń-edited.pdf")]
@@ -29,7 +31,7 @@ public class ExportEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Simultaneous_exports_all_succeed()
     {
         var responses = await Task.WhenAll(Enumerable.Range(0, 12).Select(i =>
-            Export(Blank(3), $"doc{i}.pdf", Edits(Edit(i % 3, 40, 60, [$"Export {i}"], Style((FontKind)(i % 3), bold: i % 2 == 0))))));
+            Export(Blank(3), $"doc{i}.pdf", Edits(Edit(i % 3, 40, 60, [$"Export {i}"], Style(Fonts[i % 3], bold: i % 2 == 0))))));
 
         for (var i = 0; i < responses.Length; i++)
         {
@@ -45,7 +47,7 @@ public class ExportEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var edits = Enumerable.Range(0, 1000).Select(i => Edit(
             page: i % 100, x: 40, y: 20 + i / 100 * 70,
             lines: ["Zażółć gęślą jaźń", "Съешь же ещё", "Ξεσκεπάζω"],
-            style: Style((FontKind)(i % 3), size: 12, bold: i % 2 == 0, italic: i % 4 < 2, underline: i % 5 == 0),
+            style: Style(Fonts[i % 3], size: 12, bold: i % 2 == 0, italic: i % 4 < 2, underline: i % 5 == 0),
             cover: new Cover(38, 18 + i / 100 * 70, 200, 60, "#FFFFFF"))).ToArray();
 
         var stopwatch = Stopwatch.StartNew();

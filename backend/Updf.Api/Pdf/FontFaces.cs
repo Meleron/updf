@@ -1,18 +1,61 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Text;
 
 namespace Updf.Api.Pdf;
 
-/// <summary>The characters each Noto face can show, read from the fonts' Unicode cmap tables.</summary>
-public static class FontCoverage
+/// <summary>
+/// The font faces in fonts/, copied into the build output: which face draws a family's style, the characters it can
+/// show, and its metrics. Files are named after the family without spaces, then the style.
+/// </summary>
+public static class FontFaces
 {
-    private static readonly FrozenDictionary<string, FrozenSet<int>> Faces = Directory
-        .GetFiles(Path.Combine(AppContext.BaseDirectory, "fonts"), "*.ttf")
-        .ToFrozenDictionary(path => Path.GetFileNameWithoutExtension(path), path => ReadCmap(File.ReadAllBytes(path)));
+    private static readonly string FontsDirectory = Path.Combine(AppContext.BaseDirectory, "fonts");
 
-    public static bool Supports(string faceName, Rune character) =>
-        !Rune.IsControl(character) && Faces[faceName].Contains(character.Value);
+    private static readonly FrozenSet<string> Names = Directory.GetFiles(FontsDirectory, "*.ttf")
+        .Select(path => Path.GetFileNameWithoutExtension(path))
+        .ToFrozenSet();
+
+    private static readonly ConcurrentDictionary<string, FaceData> Data = new();
+
+    private sealed record FaceData(FrozenSet<int> Characters, FaceMetrics Metrics);
+
+    /// <summary>The face that draws a style, or null for an unknown family. Italic is slanted when a family has no italic faces.</summary>
+    public static (string Name, bool SimulateItalic)? Find(string family, bool bold, bool italic)
+    {
+        var prefix = family.Replace(" ", "");
+        var weight = bold ? "Bold" : "";
+        string Name(string slant) => $"{prefix}-{(weight + slant is "" ? "Regular" : weight + slant)}";
+
+        if (italic && Names.Contains(Name("Italic")))
+        {
+            return (Name("Italic"), false);
+        }
+        return Names.Contains(Name("")) ? (Name(""), italic) : null;
+    }
+
+    public static byte[] Read(string face) => File.ReadAllBytes(Path.Combine(FontsDirectory, face + ".ttf"));
+
+    public static bool Supports(string face, Rune character) =>
+        !Rune.IsControl(character) && Get(face).Characters.Contains(character.Value);
+
+    /// <summary>A face's metrics, which the frontend reads the same way, so text boxes are laid out alike.</summary>
+    public static FaceMetrics Metrics(string face) => Get(face).Metrics;
+
+    private static FaceData Get(string face) => Data.GetOrAdd(face, name =>
+    {
+        var font = Read(name);
+        var unitsPerEm = (double)U16(font, FindTable(font, "head") + 18);
+        var hhea = FindTable(font, "hhea");
+        var post = FindTable(font, "post");
+        var (ascent, descent, lineGap) = (S16(font, hhea + 4), S16(font, hhea + 6), S16(font, hhea + 8));
+        return new FaceData(ReadCmap(font), new FaceMetrics(
+            ascent / unitsPerEm,
+            (ascent - descent + lineGap) / unitsPerEm,
+            -S16(font, post + 8) / unitsPerEm,
+            S16(font, post + 10) / unitsPerEm));
+    });
 
     private static FrozenSet<int> ReadCmap(byte[] font)
     {
@@ -101,5 +144,13 @@ public static class FontCoverage
 
     private static ushort U16(byte[] data, int offset) => BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(offset));
 
+    private static short S16(byte[] data, int offset) => BinaryPrimitives.ReadInt16BigEndian(data.AsSpan(offset));
+
     private static uint U32(byte[] data, int offset) => BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(offset));
 }
+
+/// <summary>
+/// Metrics per em: the ascent and line spacing (ascent + descent + line gap) from the hhea table, and the distance from
+/// the baseline down to the top of the underline and its thickness from the post table.
+/// </summary>
+public sealed record FaceMetrics(double Ascent, double LineHeight, double UnderlineOffset, double UnderlineThickness);

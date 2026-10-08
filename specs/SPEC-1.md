@@ -34,7 +34,7 @@ updf is a learning and portfolio project: a minimal, well-built web PDF text edi
 | Rendering and text detection | pdf.js (`pdfjs-dist`) in a Web Worker |
 | Writing the PDF | Done on the backend with PDFsharp (MIT licence), in memory |
 | Test-side PDF reading | PdfPig (backend tests); pdf.js in Node (Playwright) |
-| Fonts | Noto Sans, Noto Serif and Noto Sans Mono (regular, bold, italic, bold italic), embedded with only the used characters |
+| Fonts | New text boxes: Noto Sans, Noto Serif and Noto Sans Mono. Replacements: the original embedded font while it has the characters, else a similar open font from `fonts/` (metric-compatible fonts for common proprietary ones, popular open families by name), else Noto. Regular, bold, italic and bold italic, embedded with only the used characters |
 | Browser storage | IndexedDB behind a `DocumentRepository` interface |
 | Interface languages | English and Polish. Defaults to the browser language, with a switcher and the choice remembered |
 | Versions | The latest stable versions of every framework and library |
@@ -45,7 +45,7 @@ updf is a learning and portfolio project: a minimal, well-built web PDF text edi
 frontend/    Next.js app (dashboard, editor)
 backend/     .NET solution: Updf.Api, Updf.Api.Tests
 e2e/         Playwright suite
-fonts/       Noto TTF files, the single source used by both apps
+fonts/       Open TTF files (Noto plus the similar fonts, downloaded from Google Fonts), the single source used by both apps
 docker-compose.yml
 ```
 
@@ -61,7 +61,7 @@ docker-compose.yml
 **Backend**
 - **`POST /api/pdf/export`:** builds the edited PDF.
 - **`PdfValidator`:** repeats every upload check on the server.
-- **`PdfEditor`:** applies the edits with PDFsharp and the Noto fonts.
+- **`PdfEditor`:** applies the edits with PDFsharp, the fonts in `fonts/` and, for replacements, the PDF's own fonts.
 - **`/health/live` and `/health/ready`:** health checks.
 - **Nothing is persisted:** no database and no disk writes.
 
@@ -77,7 +77,7 @@ This contract is shared by the frontend, the backend and autosave. There's one e
     "page": 0,
     "x": 72, "y": 96,
     "lines": ["Zażółć gęślą jaźń"],
-    "style": { "font": "sans", "size": 12, "bold": false, "italic": false,
+    "style": { "font": "Noto Sans", "size": 12, "bold": false, "italic": false,
                "underline": false, "color": "#18181B", "align": "left" },
     "cover": { "x": 70, "y": 84, "width": 210, "height": 16, "color": "#FFFFFF" }
   }]
@@ -86,13 +86,14 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 
 - **Coordinates:** in points (1/72 inch), measured from the top-left corner of the page as displayed (after cropping and rotation). The backend converts them to PDF page coordinates. `x`/`y` is the top-left of the text box, and `align` aligns lines within the box's width.
 - **`page`:** zero-based.
-- **`font`:** `sans`, `serif` or `mono`.
+- **`font`:** a font family in `fonts/`, such as `Noto Sans`.
+- **`pdfFont`:** only on replacements: the name of the original font, and its bold and italic. The box is drawn in that font while all its characters are in it and bold and italic are unchanged. The export request adds each line's character codes in that font.
 - **`size`:** 6–72 pt.
 - **`color`:** `#RRGGBB`.
 - **`cover`:** left out for new text boxes.
 - **`version`:** allows the format to change without breaking documents that were autosaved earlier.
 - **Limits:** at most 1000 edits per document and 100 lines per text box.
-- **Line height:** the font's own line spacing (ascent + descent + line gap), the same as CSS `line-height: normal`, so preview and output match.
+- **Line height:** the `font`'s own line spacing (ascent + descent + line gap), set explicitly in the preview, so preview and output match.
 
 ## Editor behaviour
 
@@ -112,13 +113,13 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 **Replace text**
 - In Select mode, hovering over an existing line shows a faint outline.
 - Clicking a line creates a replacement for the whole line. The cover takes the line's area (with a small margin) and its colour from the pixels around the line in the page image.
-- The box starts with the original text, plus the closest font family and size.
+- The box starts with the original text in the original font and size. Its font can't be changed. An underlined line starts underlined.
 - The new text can be moved, but the cover stays over the original.
 - Deleting a replacement brings the original line back.
 - The first replacement in a session shows a one-time hint: "Replaced text is hidden, not removed. Don't use this to remove sensitive information."
 - On scanned or image-only pages there's no text to replace. A hint says only adding text is available.
 
-**Formatting** applies to the whole box: font, size, bold, italic, underline, colour (a preset palette plus a custom picker) and alignment.
+**Formatting** applies to the whole box: font (new boxes only), size, bold, italic, underline, colour (a preset palette plus a custom picker) and alignment.
 
 **Boxes**
 - Select with a click or Tab. Move by dragging or with the arrow keys. Delete with Delete.
@@ -148,7 +149,7 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 | Status | `code` | When |
 |---|---|---|
 | 400 | `invalid-edits` | The edits fail the edit model's rules or limits, or `page` is out of range |
-| 400 | `unsupported-characters` | Text uses characters the Noto fonts can't show |
+| 400 | `unsupported-characters` | Text uses characters the box's font can't show |
 | 413 | `file-too-large` | File over 25 MB |
 | 415 | `not-a-pdf` | File doesn't start with `%PDF-` |
 | 422 | `pdf-encrypted` | Any encrypted PDF, including ones with only an owner (permissions) password, which PDFsharp cannot modify |

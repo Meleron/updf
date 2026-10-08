@@ -26,7 +26,7 @@ function sizeField(page: Page) {
   return bar(page).getByRole("spinbutton", { name: "Font size in points" });
 }
 
-const fontNames = { sans: "Sans", serif: "Serif", mono: "Mono" };
+const fontNames = { "Noto Sans": "Sans", "Noto Serif": "Serif", "Noto Sans Mono": "Mono" };
 const alignNames = { left: "Align left", center: "Centre", right: "Align right" };
 
 /** Formats the box being edited through the bar, as a user would. Toggles are set to the given state. */
@@ -78,7 +78,7 @@ test("every option shows in the preview, and typing goes on after each", async (
   await addBox(page);
   await page.keyboard.type("Zażółć");
 
-  await format(page, { font: "serif", size: 20, bold: true, italic: true, underline: true, color: "#C62828", align: "center" });
+  await format(page, { font: "Noto Serif", size: 20, bold: true, italic: true, underline: true, color: "#C62828", align: "center" });
   await expect(textBoxInput(page)).toBeFocused();
   await page.keyboard.press("Enter");
   await page.keyboard.type("gęślą jaźń");
@@ -144,7 +144,7 @@ test("new boxes take the style used last", async ({ page }) => {
   await openAt100Percent(page);
   await addBox(page);
   await page.keyboard.type("First");
-  await format(page, { font: "mono", bold: true, color: "#1565C0" });
+  await format(page, { font: "Noto Sans Mono", bold: true, color: "#1565C0" });
   await page.keyboard.press("Escape");
 
   await addBox(page, 100, 300);
@@ -157,10 +157,10 @@ test("new boxes take the style used last", async ({ page }) => {
 test("the exported PDF has every style where the preview shows it", async ({ page, request }) => {
   await openAt100Percent(page);
   const boxes: { at: [number, number]; lines: string[]; style: Partial<TextStyle> }[] = [
-    { at: [60, 140], lines: ["Zażółć gęślą jaźń", "Centred"], style: { font: "serif", size: 20, bold: true, italic: true, align: "center" } },
-    { at: [60, 260], lines: ["Right aligned mono", "Съешь"], style: { font: "mono", size: 9, italic: true, align: "right" } },
+    { at: [60, 140], lines: ["Zażółć gęślą jaźń", "Centred"], style: { font: "Noto Serif", size: 20, bold: true, italic: true, align: "center" } },
+    { at: [60, 260], lines: ["Right aligned mono", "Съешь"], style: { font: "Noto Sans Mono", size: 9, italic: true, align: "right" } },
     { at: [60, 340], lines: ["Duży Ξ"], style: { size: 36, bold: true, underline: true, color: "#C62828" } },
-    { at: [60, 440], lines: ["Tiny serif text"], style: { font: "serif", size: 6 } },
+    { at: [60, 440], lines: ["Tiny serif text"], style: { font: "Noto Serif", size: 6 } },
   ];
   const edits: Edit[] = [];
   for (const box of boxes) {

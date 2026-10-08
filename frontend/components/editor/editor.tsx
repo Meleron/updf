@@ -267,6 +267,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
               <FormattingBar
                 key={selected.id}
                 style={selected.style}
+                fontLocked={!!selected.cover}
                 onStyle={(style) => dispatch({ type: "setStyle", style })}
                 onReturn={() => (editingInput.current ?? document.getElementById(textBoxId(selected.id)))?.focus()}
                 onDeselect={() => dispatch({ type: "deselect" })}

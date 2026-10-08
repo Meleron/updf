@@ -1,9 +1,7 @@
-import type { Cover, TextEdit } from "./edits";
-import { notoAscent } from "./fonts";
+import type { Cover, TextEdit, TextStyle } from "./edits";
+import { faceFor } from "./fonts";
 import { maxSize, minSize } from "./formatting";
-import type { TextLine } from "./text-lines";
-
-type Rect = { x: number; y: number; width: number; height: number };
+import type { Rect, TextLine } from "./text-lines";
 
 /** The area a replacement covers: the line's ascent to descent, plus a margin for glyphs that reach beyond them. */
 export function coverArea(line: TextLine): Rect {
@@ -65,11 +63,7 @@ export function sampleColors(
 export function replacementFor(line: TextLine, colors: { background: string; text: string }): Omit<TextEdit, "id" | "page"> {
   const size = Math.min(maxSize, Math.max(minSize, Math.round(line.size * 10) / 10));
   const cover: Cover = { ...coverArea(line), color: colors.background };
-  return {
-    x: line.x,
-    y: line.baseline - notoAscent * size,
-    lines: [line.text],
-    style: { font: line.font, size, bold: line.bold, italic: line.italic, underline: false, color: colors.text, align: "left" },
-    cover,
-  };
+  const style: TextStyle = { font: line.font, size, bold: line.bold, italic: line.italic, underline: line.underline, color: colors.text, align: "left" };
+  const pdfFont = line.pdfFont && { name: line.pdfFont.name, bold: line.bold, italic: line.italic };
+  return { x: line.x, y: line.baseline - faceFor(style).ascent * size, lines: [line.text], style, cover, ...(pdfFont && { pdfFont }) };
 }

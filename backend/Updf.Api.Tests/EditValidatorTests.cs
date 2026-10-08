@@ -44,8 +44,14 @@ public class EditValidatorTests
         { "zero-width cover", ToJson(Edits(Valid with { Cover = Valid.Cover! with { Width = 0 } })) },
         { "negative-height cover", ToJson(Edits(Valid with { Cover = Valid.Cover! with { Height = -1 } })) },
         { "bad cover colour", ToJson(Edits(Valid with { Cover = Valid.Cover! with { Color = "#12345" } })) },
-        { "unknown font", ToJson(Edits(Valid)).Replace("\"sans\"", "\"comic\"") },
-        { "numeric font", ToJson(Edits(Valid)).Replace("\"sans\"", "0") },
+        { "unknown font", ToJson(Edits(Valid)).Replace("\"Noto Sans\"", "\"Comic\"") },
+        { "font path", ToJson(Edits(Valid)).Replace("\"Noto Sans\"", "\"../fonts/NotoSans\"") },
+        { "numeric font", ToJson(Edits(Valid)).Replace("\"Noto Sans\"", "0") },
+        { "codes for fewer lines", ToJson(Edits(Valid with { PdfFont = new PdfFont("F", []) })) },
+        { "a code per byte", ToJson(Edits(Valid with { Lines = ["ż"], PdfFont = new PdfFont("F", [[1, 2]]) })) },
+        { "code above two bytes", ToJson(Edits(Valid with { Lines = ["a"], PdfFont = new PdfFont("F", [[0x10000]]) })) },
+        { "code below -1", ToJson(Edits(Valid with { Lines = ["a"], PdfFont = new PdfFont("F", [[-2]]) })) },
+        { "empty font name", ToJson(Edits(Valid with { Lines = ["a"], PdfFont = new PdfFont("", [[1]]) })) },
         { "missing style", ToJson(Edits(Valid)).Replace("\"style\":", "\"ignored\":") },
         { "null edits", """{"version":1,"edits":null}""" },
         { "empty object", "{}" },
@@ -65,6 +71,14 @@ public class EditValidatorTests
     public void Missing_edits_are_rejected()
     {
         AssertRejected("invalid-edits", () => EditValidator.Parse(null, PageCount));
+    }
+
+    [Fact]
+    public void Text_in_an_original_font_is_not_checked_against_the_style_font()
+    {
+        var json = ToJson(Edits(Valid with { Lines = ["你 好"], PdfFont = new PdfFont("ABCDEF+SimSun", [[1, -1, 2]]) }));
+
+        Assert.Equal([[1, -1, 2]], EditValidator.Parse(json, PageCount).Edits[0].PdfFont!.Codes);
     }
 
     [Theory]

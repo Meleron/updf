@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../fonts/*" Link="fonts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../fonts/**/*.ttf;../../fonts/**/*.txt" Link="fonts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

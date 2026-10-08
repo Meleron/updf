@@ -8,6 +8,7 @@ import { TextBox } from "@/components/editor/text-box";
 import { pointOnPage, toPixels } from "@/lib/coordinates";
 import type { TextEdit } from "@/lib/edits";
 import type { EditorAction, Tool } from "@/lib/editor-state";
+import { addFontFaces, type PdfFont } from "@/lib/pdf-fonts";
 import { coverArea, isReplaced, replacementFor, sampleColors } from "@/lib/replace";
 import { readLines, type TextLine } from "@/lib/text-lines";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,10 @@ export function PageView(props: Props) {
       canvas.current = drawn;
       // After drawing, so the fonts are loaded and lines can tell which font is closest.
       if (drawn) {
-        reading.current ??= readLines(page).then(setLines);
+        reading.current ??= readLines(page).then((read) => {
+          addFontFaces(read.flatMap((line) => line.pdfFont ?? []));
+          setLines(read);
+        });
       }
     },
     [page],
@@ -111,6 +115,8 @@ export function PageView(props: Props) {
   }
 
   const outline = hovered && coverArea(hovered);
+  // The fonts replacements on this page were drawn in, by name.
+  const pdfFonts = new Map<string, PdfFont>(lines?.flatMap((line) => (line.pdfFont ? [[line.pdfFont.name, line.pdfFont]] : [])));
   return (
     <div
       ref={ref}
@@ -160,6 +166,7 @@ export function PageView(props: Props) {
         <TextBox
           key={edit.id}
           edit={edit}
+          pdfFont={edit.pdfFont && pdfFonts.get(edit.pdfFont.name)}
           zoom={zoom}
           pageSize={size}
           selected={edit.id === selected}

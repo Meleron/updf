@@ -26,7 +26,7 @@ const replacement = {
   x: 72,
   y: 81,
   lines: ["Original"],
-  style: { ...defaultStyle, font: "serif" as const, size: 14 },
+  style: { ...defaultStyle, font: "Noto Serif", size: 14 },
   cover: { x: 70, y: 80, width: 100, height: 20, color: "#FEF3C7" },
 };
 
@@ -40,7 +40,7 @@ describe("editorReducer", () => {
   });
 
   it("adds an empty box in the style used last, selected and ready to type, and goes back to Select", () => {
-    const style = { ...defaultStyle, font: "serif" as const, size: 20 };
+    const style = { ...defaultStyle, font: "Noto Serif", size: 20 };
     const state = addText({ ...initialState, tool: "text", style });
 
     expect(state.edits).toEqual([{ id: "a", page: 1, x: 72, y: 96, lines: [""], style }]);
@@ -94,12 +94,20 @@ describe("editorReducer", () => {
   });
 
   it("formats the selected box, and new boxes take its style", () => {
-    const formatted = apply(twoBoxes(), { type: "select", id: "a" }, { type: "setStyle", style: { font: "serif", bold: true, color: "#C62828" } });
-    const style = { ...defaultStyle, font: "serif", bold: true, color: "#C62828" };
+    const formatted = apply(twoBoxes(), { type: "select", id: "a" }, { type: "setStyle", style: { font: "Noto Serif", bold: true, color: "#C62828" } });
+    const style = { ...defaultStyle, font: "Noto Serif", bold: true, color: "#C62828" };
 
     expect(formatted.edits.map((edit) => edit.style)).toEqual([style, defaultStyle]);
     expect(formatted.style).toEqual(style);
     expect(addText(formatted, "c").edits[2].style).toEqual(style);
+  });
+
+  it("doesn't give new boxes a replacement's font, which can't be chosen", () => {
+    const replaced = apply(initialState, { type: "addReplacement", edit: { ...replacement, style: { ...defaultStyle, font: "Arimo" } } });
+    const formatted = editorReducer(replaced, { type: "setStyle", style: { bold: true } });
+
+    expect(formatted.edits[0].style).toMatchObject({ font: "Arimo", bold: true });
+    expect(formatted.style).toEqual({ ...defaultStyle, bold: true });
   });
 
   it("ignores formatting when no box is selected", () => {

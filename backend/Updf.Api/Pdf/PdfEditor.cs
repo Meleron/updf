@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
@@ -11,7 +12,7 @@ public sealed class PdfEditor
     private static readonly XPdfFontOptions FontOptions = new(PdfFontEncoding.Unicode);
 
     // PDFsharp's font resolver is global and can be set only once. A static constructor runs exactly once per process.
-    static PdfEditor() => GlobalFontSettings.FontResolver = new NotoFontResolver();
+    static PdfEditor() => GlobalFontSettings.FontResolver = new FontResolver();
 
     public byte[] Apply(PdfDocument document, EditDocument edits, CancellationToken cancellationToken)
     {
@@ -19,16 +20,37 @@ public sealed class PdfEditor
         {
             cancellationToken.ThrowIfCancellationRequested();
             var page = document.Pages[pageEdits.Key];
-            using var gfx = XGraphics.FromPdfPage(page);
-            gfx.MultiplyTransform(DisplayToDrawing(page, gfx.PageSize.Height));
+            var inOriginalFonts = new List<(TextEdit Edit, OriginalFont Font, double SpaceWidth)>();
+            XMatrix displayToUser;
+            using (var gfx = XGraphics.FromPdfPage(page))
+            {
+                var displayToDrawing = DisplayToDrawing(page, gfx.PageSize.Height);
+                gfx.MultiplyTransform(displayToDrawing);
+                // PDFsharp's drawing space is PDF user space upside down.
+                displayToUser = displayToDrawing * new XMatrix(1, 0, 0, -1, 0, gfx.PageSize.Height);
 
-            foreach (var cover in pageEdits.Select(e => e.Cover).OfType<Cover>())
-            {
-                gfx.DrawRectangle(new XSolidBrush(ToColor(cover.Color)), cover.X, cover.Y, cover.Width, cover.Height);
+                foreach (var cover in pageEdits.Select(e => e.Cover).OfType<Cover>())
+                {
+                    gfx.DrawRectangle(new XSolidBrush(ToColor(cover.Color)), cover.X, cover.Y, cover.Width, cover.Height);
+                }
+                foreach (var edit in pageEdits)
+                {
+                    if (edit.PdfFont is { } pdfFont && OriginalFont.Find(page, pdfFont.Name, pdfFont.Codes) is { } font)
+                    {
+                        // A space the font lacks takes the space of the style's font, regular, as in the preview.
+                        var space = gfx.MeasureString(" ", new XFont(edit.Style.Font, edit.Style.Size, XFontStyleEx.Regular, FontOptions)).Width;
+                        inOriginalFonts.Add((edit, font, space / edit.Style.Size));
+                    }
+                    else
+                    {
+                        DrawText(gfx, edit);
+                    }
+                }
             }
-            foreach (var edit in pageEdits)
+            // After PDFsharp's content, so the covers are under this text too.
+            if (inOriginalFonts.Count > 0)
             {
-                DrawText(gfx, edit);
+                WriteInOriginalFonts(page, displayToUser, inOriginalFonts);
             }
         }
 
@@ -40,20 +62,15 @@ public sealed class PdfEditor
     private static void DrawText(XGraphics gfx, TextEdit edit)
     {
         var style = edit.Style;
-        var font = new XFont(FontFamilies.For(style.Font), style.Size, FontStyle(style), FontOptions);
+        var font = new XFont(style.Font, style.Size, FontStyle(style), FontOptions);
         var brush = new XSolidBrush(ToColor(style.Color));
         var widths = edit.Lines.Select(line => gfx.MeasureString(line, font).Width).ToList();
         var boxWidth = widths.DefaultIfEmpty(0).Max();
-        var alignShare = style.Align switch
-        {
-            TextAlign.Center => 0.5,
-            TextAlign.Right => 1,
-            _ => 0,
-        };
+        var alignShare = AlignShare(style.Align);
 
-        // Line height is the font's own line spacing (ascent + descent + line gap), like CSS `line-height: normal`.
-        var ascent = style.Size * font.Metrics.Ascent / font.Metrics.UnitsPerEm;
-        var lineHeight = font.GetHeight();
+        // The face's own ascent and line spacing, which the frontend uses too. PDFsharp's own metrics mix tables.
+        var metrics = FontFaces.Metrics(FontFaces.Find(style.Font, style.Bold, style.Italic)!.Value.Name);
+        var (ascent, lineHeight) = (metrics.Ascent * style.Size, metrics.LineHeight * style.Size);
 
         for (var i = 0; i < edit.Lines.Count; i++)
         {
@@ -65,6 +82,58 @@ public sealed class PdfEditor
             gfx.DrawString(edit.Lines[i], font, brush, x, edit.Y + ascent + i * lineHeight);
         }
     }
+
+    /// <summary>
+    /// Writes text in fonts already in the PDF as content operators, laid out like <see cref="DrawText"/>: the style's
+    /// face gives the ascent, line spacing and underline, and the font's own widths the line widths.
+    /// </summary>
+    private static void WriteInOriginalFonts(PdfPage page, XMatrix displayToUser, List<(TextEdit Edit, OriginalFont Font, double SpaceWidth)> texts)
+    {
+        static string N(double value) => OriginalFont.Number(value);
+        var m = displayToUser;
+        var content = new StringBuilder($"q {N(m.M11)} {N(m.M12)} {N(m.M21)} {N(m.M22)} {N(m.OffsetX)} {N(m.OffsetY)} cm\n");
+        var resources = new Dictionary<string, string>();
+        foreach (var (edit, font, space) in texts)
+        {
+            var (style, codes) = (edit.Style, edit.PdfFont!.Codes);
+            var resource = resources.TryGetValue(edit.PdfFont.Name, out var added) ? added : resources[edit.PdfFont.Name] = font.AddTo(page);
+            var metrics = FontFaces.Metrics(FontFaces.Find(style.Font, style.Bold, style.Italic)!.Value.Name);
+            var widths = codes.Select(line => line.Sum(code => code < 0 ? space : font.Width(code)) * style.Size).ToList();
+            var boxWidth = widths.DefaultIfEmpty(0).Max();
+            var color = ToColor(style.Color);
+
+            // Text state is reset, since the page's own content may have left it changed. The text matrix turns the
+            // glyphs upright in display space, whose y axis points down.
+            content.Append($"{N(color.R / 255.0)} {N(color.G / 255.0)} {N(color.B / 255.0)} rg\n");
+            content.Append($"BT 0 Tc 0 Tw 100 Tz 0 Ts 0 Tr {resource} {N(style.Size)} Tf\n");
+            var underlines = new StringBuilder();
+            for (var i = 0; i < codes.Count; i++)
+            {
+                if (codes[i].Count == 0)
+                {
+                    continue;
+                }
+                var x = edit.X + (boxWidth - widths[i]) * AlignShare(style.Align);
+                var y = edit.Y + (metrics.Ascent + i * metrics.LineHeight) * style.Size;
+                content.Append($"1 0 0 -1 {N(x)} {N(y)} Tm {font.ShowText(codes[i], space)} TJ\n");
+                underlines.Append($"{N(x)} {N(y + metrics.UnderlineOffset * style.Size)} {N(widths[i])} {N(metrics.UnderlineThickness * style.Size)} re f\n");
+            }
+            content.Append("ET\n");
+            if (style.Underline)
+            {
+                content.Append(underlines);
+            }
+        }
+        content.Append("Q\n");
+        page.Contents.AppendContent().CreateStream(Encoding.ASCII.GetBytes(content.ToString()));
+    }
+
+    private static double AlignShare(TextAlign align) => align switch
+    {
+        TextAlign.Center => 0.5,
+        TextAlign.Right => 1,
+        _ => 0,
+    };
 
     /// <summary>
     /// Maps edit coordinates (points from the top-left of the page as displayed, after cropping and /Rotate)

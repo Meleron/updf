@@ -76,6 +76,13 @@ public static class TestPdfs
         "<< /Type /Pages /Kids [3 0 R] /Count 1 /Rotate 90 /MediaBox [100 200 700 1000] /CropBox [150 250 650 950] >>",
         "<< /Type /Page /Parent 2 0 R >>");
 
+    /// <summary>One page whose resources hold a form that lists itself in its own resources.</summary>
+    public static byte[] SelfContainingForm() => Raw(
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /X 4 0 R >> >> >>",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /X 4 0 R >> >> /Length 0 >>\nstream\n\nendstream");
+
     private static byte[] Raw(params string[] objects)
     {
         var pdf = new StringBuilder("%PDF-1.7\n");
@@ -96,7 +103,7 @@ public static class TestPdfs
     }
 
     public static TextStyle Style(
-        FontKind font = FontKind.Sans, double size = 20, bool bold = false, bool italic = false,
+        string font = "Noto Sans", double size = 20, bool bold = false, bool italic = false,
         bool underline = false, string color = "#000000", TextAlign align = TextAlign.Left) =>
         new(font, size, bold, italic, underline, color, align);
 

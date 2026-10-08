@@ -1,4 +1,5 @@
 import type { TextEdit, TextStyle } from "./edits";
+import { boxFonts } from "./fonts";
 
 export type Tool = "select" | "text";
 
@@ -29,7 +30,7 @@ export type EditorAction =
 
 // The colour of the text in the PDF, not an interface colour.
 export const defaultStyle: TextStyle = {
-  font: "sans",
+  font: boxFonts.sans,
   size: 12,
   bold: false,
   italic: false,
@@ -87,13 +88,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         edits: state.edits.map((edit) => (edit.id === action.id ? { ...edit, lines: action.lines } : edit)),
       };
     case "setStyle": {
-      // Formats the selected box, and new boxes take its style.
+      // Formats the selected box, and new boxes take its style, but not a replacement's font, which they can't choose.
       const edit = state.edits.find((e) => e.id === state.selected);
       if (!edit) {
         return state;
       }
       const style = { ...edit.style, ...action.style };
-      return { ...state, edits: state.edits.map((e) => (e === edit ? { ...e, style } : e)), style };
+      const font = Object.values<string>(boxFonts).includes(style.font) ? style.font : state.style.font;
+      return { ...state, edits: state.edits.map((e) => (e === edit ? { ...e, style } : e)), style: { ...style, font } };
     }
     case "move":
       // Only the text moves: a replacement's cover stays over the original.

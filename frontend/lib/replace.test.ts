@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { faceFor } from "./fonts";
 import { coverArea, isReplaced, replacementFor, sampleColors } from "./replace";
 import type { TextLine } from "./text-lines";
 
@@ -10,9 +11,10 @@ const line: TextLine = {
   top: 96 - 1.069 * 14,
   bottom: 96 + 0.293 * 14,
   size: 14,
-  font: "serif",
+  font: "Noto Serif",
   bold: true,
   italic: false,
+  underline: false,
 };
 
 /** A 40 by 20 pixel image in one colour, with a rectangle of another. */
@@ -61,11 +63,15 @@ describe("replacementFor", () => {
     const edit = replacementFor(line, { background: "#FEF3C7", text: "#1E3A8A" });
 
     expect(edit).toMatchObject({ x: 72, lines: ["Quarterly report"] });
-    expect(edit.y + 1.069 * 14).toBeCloseTo(96);
-    expect(edit.style).toEqual({ font: "serif", size: 14, bold: true, italic: false, underline: false, color: "#1E3A8A", align: "left" });
+    expect(edit.y + faceFor(edit.style).ascent * 14).toBeCloseTo(96);
+    expect(edit.style).toEqual({ font: "Noto Serif", size: 14, bold: true, italic: false, underline: false, color: "#1E3A8A", align: "left" });
     expect(edit.cover).toEqual({ ...coverArea(line), color: "#FEF3C7" });
     expect(edit.cover!.y).toBeLessThan(line.top);
     expect(edit.cover!.y + edit.cover!.height).toBeGreaterThan(line.bottom);
+  });
+
+  it("keeps an underlined line underlined", () => {
+    expect(replacementFor({ ...line, underline: true }, { background: "#FFFFFF", text: "#000000" }).style.underline).toBe(true);
   });
 
   it("keeps the size within 6 to 72 pt", () => {

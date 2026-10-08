@@ -10,7 +10,7 @@ using PdfSharp.Pdf;
 var root = Here();
 var output = Path.Combine(root, "pdfs");
 Directory.CreateDirectory(output);
-GlobalFontSettings.FontResolver = new NotoFonts(Path.Combine(root, "..", "fonts"));
+GlobalFontSettings.FontResolver = new Fonts(Path.Combine(root, "..", "fonts"));
 
 Save("simple.pdf", Document(1, (g, _) => Lines(g, 72, 96, "Quarterly report", "This is a simple one-page document.", "It has a few lines of text to edit.")));
 Save("pages-100.pdf", Document(100, (g, i) => Lines(g, 72, 96, $"Page {i + 1} of 100")));
@@ -34,15 +34,15 @@ var styles = Document(2, (g, i) =>
     if (i == 1)
     {
         g.RotateAtTransform(-90, new XPoint(100, 700));
-        g.DrawString("Upright on a rotated page", new XFont(NotoFonts.Sans, 14), XBrushes.Black, 100, 700);
+        g.DrawString("Upright on a rotated page", new XFont(Fonts.Sans, 14), XBrushes.Black, 100, 700);
         return;
     }
-    g.DrawString("Serif bold italic", new XFont(NotoFonts.Serif, 12, XFontStyleEx.BoldItalic), XBrushes.Black, 72, 96);
-    g.DrawString("Mono regular", new XFont(NotoFonts.Mono, 10), XBrushes.Black, 72, 120);
-    g.DrawString("Sans bold", new XFont(NotoFonts.Sans, 16, XFontStyleEx.Bold), XBrushes.Black, 72, 148);
+    g.DrawString("Serif bold italic", new XFont(Fonts.Serif, 12, XFontStyleEx.BoldItalic), XBrushes.Black, 72, 96);
+    g.DrawString("Mono regular", new XFont(Fonts.Mono, 10), XBrushes.Black, 72, 120);
+    g.DrawString("Sans bold", new XFont(Fonts.Sans, 16, XFontStyleEx.Bold), XBrushes.Black, 72, 148);
     g.DrawRectangle(new XSolidBrush(XColor.FromArgb(0x1E, 0x3A, 0x8A)), 60, 162, 220, 30);
-    g.DrawString("White on blue", new XFont(NotoFonts.Sans, 14), XBrushes.White, 72, 182);
-    var font = new XFont(NotoFonts.Sans, 14);
+    g.DrawString("White on blue", new XFont(Fonts.Sans, 14), XBrushes.White, 72, 182);
+    var font = new XFont(Fonts.Sans, 14);
     var x = 72.0;
     foreach (var word in new[] { "Drawn", "word", "by", "word" })
     {
@@ -54,6 +54,25 @@ var styles = Document(2, (g, i) =>
 });
 styles.Pages[1].Elements.SetInteger("/Rotate", 90);
 Save("styles.pdf", styles);
+
+// Lines in fonts other than Noto, to replace without changing their look: Arimo and Tinos (metric-compatible with Arial
+// and Times), an underlined line, a line drawn word by word (no space characters), and a line above a rule that isn't
+// an underline.
+Save("fonts.pdf", Document(1, (g, _) =>
+{
+    g.DrawString("Arimo regular line", new XFont("Arimo", 12), XBrushes.Black, 72, 96);
+    g.DrawString("Tinos regular line", new XFont("Tinos", 12), XBrushes.Black, 72, 124);
+    g.DrawString("Underlined Arimo line", new XFont("Arimo", 12, XFontStyleEx.Underline), XBrushes.Black, 72, 152);
+    var font = new XFont("Tinos", 12);
+    var x = 72.0;
+    foreach (var word in new[] { "Tinos", "word", "by", "word" })
+    {
+        g.DrawString(word, font, XBrushes.Black, x, 180);
+        x += g.MeasureString(word + " ", font).Width;
+    }
+    g.DrawString("Text above a rule", new XFont("Arimo", 12), XBrushes.Black, 72, 208);
+    g.DrawLine(new XPen(XColors.Black, 0.75), 72, 216, 300, 216);
+}));
 
 var rotated = Document(1, (g, _) => Lines(g, 72, 96, "This page is rotated by 90 degrees."));
 rotated.Pages[0].Elements.SetInteger("/Rotate", 90);
@@ -130,7 +149,7 @@ static PdfDocument Document(int pageCount, Action<XGraphics, int> draw)
 
 static void Lines(XGraphics g, double x, double y, params string[] lines)
 {
-    var font = new XFont(NotoFonts.Sans, 14);
+    var font = new XFont(Fonts.Sans, 14);
     foreach (var line in lines)
     {
         g.DrawString(line, font, XBrushes.Black, x, y);
@@ -166,7 +185,8 @@ static byte[] ScannedPage()
 
 static string Here([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 
-sealed class NotoFonts(string fonts) : IFontResolver
+// Any family in fonts/: its file names are the family name without spaces, then the style.
+sealed class Fonts(string fonts) : IFontResolver
 {
     public const string Sans = "Noto Sans";
     public const string Serif = "Noto Serif";

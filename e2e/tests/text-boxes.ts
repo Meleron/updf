@@ -13,7 +13,7 @@ export const notoAscent = 1.069;
 export const notoLineHeight = 1.362;
 
 export type TextStyle = {
-  font: "sans" | "serif" | "mono";
+  font: "Noto Sans" | "Noto Serif" | "Noto Sans Mono";
   size: number;
   bold: boolean;
   italic: boolean;
@@ -23,7 +23,7 @@ export type TextStyle = {
 };
 
 export const defaultStyle: TextStyle = {
-  font: "sans",
+  font: "Noto Sans",
   size: 12,
   bold: false,
   italic: false,

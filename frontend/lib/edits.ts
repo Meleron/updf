@@ -12,10 +12,17 @@ export interface TextEdit {
   lines: string[];
   style: TextStyle;
   cover?: Cover;
+  /**
+   * Only on replacements: the original font, by its name in the PDF, with the original's bold and italic. The box is
+   * drawn in it while bold and italic are unchanged and every character is in it. The export adds each line's
+   * character codes in it, and leaves it out when the box isn't drawn in it.
+   */
+  pdfFont?: { name: string; bold: boolean; italic: boolean; codes?: number[][] };
 }
 
 export interface TextStyle {
-  font: "sans" | "serif" | "mono";
+  /** A font family in fonts/. */
+  font: string;
   size: number;
   bold: boolean;
   italic: boolean;

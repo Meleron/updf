@@ -59,13 +59,14 @@ test("hovering a line in Select shows a faint outline, but not with Add text", a
   await expect(outline).toBeHidden();
 });
 
-test("clicking a line replaces it: the original text in the closest font and size, over a cover", async ({ page }) => {
+test("clicking a line replaces it: the original text in its own font and size, over a cover", async ({ page }) => {
   await openAt100Percent(page);
 
   await replaceAt(page, 100, 113);
 
   await expect(textBoxInput(page)).toHaveValue("This is a simple one-page document.");
-  await expect(bar(page).getByRole("button", { name: "Font: Sans" })).toBeVisible();
+  // A replacement keeps the original's font.
+  await expect(bar(page).getByRole("button", { name: /^Font: / })).toHaveCount(0);
   await expect(bar(page).getByRole("spinbutton", { name: "Font size in points" })).toHaveValue("14");
   await expect(bar(page).getByRole("button", { name: "Colour: Black" })).toBeVisible();
   await expect(page.getByTestId("cover")).toHaveCSS("background-color", "rgb(255, 255, 255)");
@@ -80,18 +81,17 @@ test("clicking a line replaces it: the original text in the closest font and siz
   await expect(page.getByTestId("line-outline")).toBeHidden();
 });
 
-test("the closest font, style and colours come from the original line", async ({ page }) => {
+test("the style and colours come from the original line", async ({ page }) => {
   await openFixtureAt100Percent(page, "styles.pdf", 2);
 
   await replaceAt(page, 80, 92, 2);
-  await expect(bar(page).getByRole("button", { name: "Font: Serif" })).toBeVisible();
   await expect(bar(page).getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
   await expect(bar(page).getByRole("button", { name: "Italic" })).toHaveAttribute("aria-pressed", "true");
   await expect(bar(page).getByRole("spinbutton", { name: "Font size in points" })).toHaveValue("12");
   await page.keyboard.press("Escape");
 
   await replaceAt(page, 80, 116, 2);
-  await expect(bar(page).getByRole("button", { name: "Font: Mono" })).toBeVisible();
+  await expect(bar(page).getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
 
   // White text on a blue band: the text is white, and the cover is the band's blue.
@@ -192,7 +192,7 @@ test("the exported PDF has the new text where the preview shows it, and the orig
     x: 72,
     y: 118 - notoAscent * 14,
     lines: ["Shorter."],
-    style: { font: "sans", size: 14, bold: false, italic: false, underline: false, color: "#000000", align: "left" },
+    style: { font: "Noto Sans", size: 14, bold: false, italic: false, underline: false, color: "#000000", align: "left" },
     cover: {
       x: cover.x / pixelsPerPoint,
       y: cover.y / pixelsPerPoint,
