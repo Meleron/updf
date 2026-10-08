@@ -29,6 +29,18 @@
     "pdf-unreadable": "This PDF is damaged and can't be opened.",
     "unexpected": "Something went wrong while opening the file. Try again."
   },
+  "ExportErrors": {
+    "invalid-edits": "The edits couldn't be applied. Undo the last change and try again.",
+    "unsupported-characters": "Some text uses characters its font can't show. Remove them and try again.",
+    "file-too-large": "This PDF is over 25 MB, so it can't be downloaded with edits.",
+    "not-a-pdf": "This file isn't a PDF, so it can't be downloaded with edits.",
+    "pdf-encrypted": "This PDF is protected with a password or permissions, so it can't be edited. Save an unprotected copy and open it instead.",
+    "pdf-too-many-pages": "This PDF has more than 100 pages, so it can't be downloaded with edits.",
+    "pdf-unreadable": "This PDF is damaged, so the edits can't be saved into it.",
+    "rate-limited": "Too many downloads in a short time. Wait a minute and try again.",
+    "processing-timeout": "Preparing the PDF took too long. Try again.",
+    "unexpected": "The download failed. Check your connection and try again."
+  },
   "Editor": {
     "thumbnails": "Page thumbnails",
     "page": "Page {number}",
@@ -36,6 +48,8 @@
     "undo": "Undo",
     "redo": "Redo",
     "download": "Download",
+    "downloading": "Preparing…",
+    "retry": "Retry",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "fitWidth": "Fit width",

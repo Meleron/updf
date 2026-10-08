@@ -1,18 +1,18 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 import { openInEditor, pageImage } from "./helpers";
+import { readText } from "./pdf";
 import {
   addBox,
-  addBoxAt,
   clickPage,
-  defaultStyle,
+  download,
   expectExportedAsPreviewed,
   expectNear,
-  exportText,
   openAt100Percent,
+  openDownloaded,
   pixelsPerPoint,
+  previewLines,
   textBoxInput,
   tool,
-  type Edit,
   type TextStyle,
 } from "./text-boxes";
 
@@ -154,7 +154,7 @@ test("new boxes take the style used last", async ({ page }) => {
   await expect(bar(page).getByRole("button", { name: "Colour: Blue" })).toBeVisible();
 });
 
-test("the exported PDF has every style where the preview shows it", async ({ page, request }) => {
+test("the downloaded PDF has every style where the preview shows it", async ({ page }) => {
   await openAt100Percent(page);
   const boxes: { at: [number, number]; lines: string[]; style: Partial<TextStyle> }[] = [
     { at: [60, 140], lines: ["Zażółć gęślą jaźń", "Centred"], style: { font: "Noto Serif", size: 20, bold: true, italic: true, align: "center" } },
@@ -162,22 +162,49 @@ test("the exported PDF has every style where the preview shows it", async ({ pag
     { at: [60, 340], lines: ["Duży Ξ"], style: { size: 36, bold: true, underline: true, color: "#C62828" } },
     { at: [60, 440], lines: ["Tiny serif text"], style: { font: "Noto Serif", size: 6 } },
   ];
-  const edits: Edit[] = [];
   for (const box of boxes) {
-    const position = await addBoxAt(page, ...box.at);
+    await addBox(page, ...box.at);
     await page.keyboard.type(box.lines.join("\n"));
     await format(page, box.style);
     await page.keyboard.press("Escape");
-    // Each box starts in the style used last, so the edit starts from the box before.
-    const style: TextStyle = { ...(edits.at(-1)?.style ?? defaultStyle), ...box.style };
-    edits.push({ ...position, lines: box.lines, style });
   }
+  const [red] = await previewLines(page, page.getByTestId("text-box").nth(2));
 
-  const exported = await exportText(request, edits);
+  const file = await download(page);
 
+  const exported = await readText(file.pdf, 1);
   for (const [i] of boxes.entries()) {
     await expectExportedAsPreviewed(page, page.getByTestId("text-box").nth(i), exported);
   }
+
+  // The red, underlined line as drawn: its ink is red, and some rows below the baseline are red across the line.
+  const canvas = await openDownloaded(page, file);
+  const area = { x: red.x, y: red.baseline - 30, width: red.width, height: 40 };
+  const { inked, ruled } = await canvas.evaluate((c: HTMLCanvasElement, { area, scale, baseline }) => {
+    const [x, y, width, height] = [area.x, area.y, area.width, area.height].map((value) => Math.round(value * scale));
+    const { data } = c.getContext("2d")!.getImageData(x, y, width, height);
+    const isRed = (i: number) => data[i] > 150 && data[i + 1] < 100 && data[i + 2] < 100;
+    const isInk = (i: number) => data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200;
+    let [ink, redInk] = [0, 0];
+    const ruled: number[] = [];
+    for (let row = 0; row < height; row++) {
+      let redInRow = 0;
+      for (let column = 0; column < width; column++) {
+        const i = (row * width + column) * 4;
+        ink += isInk(i) ? 1 : 0;
+        redInk += isRed(i) ? 1 : 0;
+        redInRow += isRed(i) ? 1 : 0;
+      }
+      if (redInRow > 0.9 * width) {
+        ruled.push(y + row - baseline * scale);
+      }
+    }
+    return { inked: { ink, redInk }, ruled };
+  }, { area, scale: pixelsPerPoint, baseline: red.baseline });
+  // Antialiased edges are lighter, and not red enough to count.
+  expect(inked.redInk).toBeGreaterThan(0.6 * inked.ink);
+  expect(ruled.length).toBeGreaterThan(0);
+  expect(ruled.every((offset) => offset > 0)).toBe(true);
 });
 
 test("characters the fonts can't show get a warning on the text box", async ({ page }) => {

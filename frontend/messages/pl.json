@@ -29,6 +29,18 @@
     "pdf-unreadable": "Ten plik PDF jest uszkodzony i nie można go otworzyć.",
     "unexpected": "Coś poszło nie tak podczas otwierania pliku. Spróbuj ponownie."
   },
+  "ExportErrors": {
+    "invalid-edits": "Nie udało się zastosować zmian. Cofnij ostatnią zmianę i spróbuj ponownie.",
+    "unsupported-characters": "Część tekstu zawiera znaki, których jego czcionka nie obsługuje. Usuń je i spróbuj ponownie.",
+    "file-too-large": "Ten plik PDF ma ponad 25 MB, więc nie można go pobrać ze zmianami.",
+    "not-a-pdf": "Ten plik nie jest plikiem PDF, więc nie można go pobrać ze zmianami.",
+    "pdf-encrypted": "Ten plik PDF jest zabezpieczony hasłem lub uprawnieniami, więc nie można go edytować. Zapisz niezabezpieczoną kopię i otwórz ją.",
+    "pdf-too-many-pages": "Ten plik PDF ma ponad 100 stron, więc nie można go pobrać ze zmianami.",
+    "pdf-unreadable": "Ten plik PDF jest uszkodzony, więc nie można zapisać w nim zmian.",
+    "rate-limited": "Zbyt wiele pobrań w krótkim czasie. Odczekaj minutę i spróbuj ponownie.",
+    "processing-timeout": "Przygotowanie pliku PDF trwało zbyt długo. Spróbuj ponownie.",
+    "unexpected": "Pobieranie nie powiodło się. Sprawdź połączenie i spróbuj ponownie."
+  },
   "Editor": {
     "thumbnails": "Miniatury stron",
     "page": "Strona {number}",
@@ -36,6 +48,8 @@
     "undo": "Cofnij",
     "redo": "Ponów",
     "download": "Pobierz",
+    "downloading": "Przygotowywanie…",
+    "retry": "Spróbuj ponownie",
     "zoomIn": "Powiększ",
     "zoomOut": "Pomniejsz",
     "fitWidth": "Dopasuj do szerokości",

@@ -1,10 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { fixture, openInEditor, pageImage } from "./helpers";
-import { readText } from "./pdf";
-
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
+import { readFile } from "node:fs/promises";
+import { expect, type Locator, type Page } from "@playwright/test";
+import { openInEditor, pageImage, pick } from "./helpers";
+import type { readText } from "./pdf";
 
 /** CSS pixels per point at 100% zoom. */
 export const pixelsPerPoint = 96 / 72;
@@ -45,11 +42,29 @@ export function textBoxInput(page: Page) {
   return page.getByRole("textbox", { name: "Text box" });
 }
 
-export async function openAt100Percent(page: Page) {
-  await openInEditor(page, "simple.pdf");
+async function zoomTo100Percent(page: Page) {
   await page.getByRole("button", { name: /^Zoom: / }).click();
   await page.getByRole("menuitemradio", { name: "100%", exact: true }).click();
   await expect(page.getByRole("button", { name: "Zoom: 100%" })).toBeVisible();
+}
+
+export async function openAt100Percent(page: Page) {
+  await openInEditor(page, "simple.pdf");
+  await zoomTo100Percent(page);
+}
+
+/**
+ * Opens a downloaded copy of simple.pdf in the editor at 100% zoom, and returns its page's canvas once it's drawn at
+ * that size, where a point is 4/3 of a canvas pixel.
+ */
+export async function openDownloaded(page: Page, file: { name: string; pdf: Buffer }) {
+  await page.goto("/");
+  await pick(page, { name: file.name, mimeType: "application/pdf", buffer: file.pdf });
+  await expect(page).toHaveURL("/edit");
+  await zoomTo100Percent(page);
+  const canvas = pageImage(page, 1, 1).locator("canvas");
+  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(Math.floor(595 * pixelsPerPoint));
+  return canvas;
 }
 
 /** Clicks the first page at a position in CSS pixels from its top-left corner. */
@@ -61,19 +76,6 @@ export async function addBox(page: Page, x = 100, y = 120) {
   await tool(page, "Add text").click();
   await clickPage(page, x, y);
   await expect(textBoxInput(page)).toBeFocused();
-}
-
-/**
- * Adds a box about x by y CSS pixels from the first page's corner, clicking on whole pixels as mouse events do, and
- * returns the edit's position in points, worked out as the editor does. The page must be at 100% zoom.
- */
-export async function addBoxAt(page: Page, x: number, y: number) {
-  const pageBox = (await pageImage(page, 1, 1).boundingBox())!;
-  const click = { x: Math.ceil(pageBox.x) + x, y: Math.ceil(pageBox.y) + y };
-  await tool(page, "Add text").click();
-  await page.mouse.click(click.x, click.y);
-  await expect(textBoxInput(page)).toBeFocused();
-  return { x: (click.x - pageBox.x) / pixelsPerPoint, y: (click.y - pageBox.y) / pixelsPerPoint };
 }
 
 /** Where the preview draws each line of a finished text box, in points from the page's top-left corner, at 100% zoom. */
@@ -110,21 +112,12 @@ export async function previewLines(page: Page, box: Locator) {
   }));
 }
 
-export type Edit = { x: number; y: number; lines: string[]; style: TextStyle };
-
-/**
- * Exports simple.pdf with text edits on its first page and returns that page's text. F-012 sends the editor's edits
- * with the Download button; until then tests send the same edits to the export API.
- */
-export async function exportText(request: APIRequestContext, edits: Edit[]) {
-  const response = await request.post(`${backendUrl}/api/pdf/export`, {
-    multipart: {
-      file: { name: "simple.pdf", mimeType: "application/pdf", buffer: readFileSync(fixture("simple.pdf")) },
-      edits: JSON.stringify({ version: 1, edits: edits.map((edit) => ({ id: randomUUID(), page: 0, ...edit })) }),
-    },
-  });
-  expect(response.status()).toBe(200);
-  return readText(await response.body(), 1);
+/** Downloads the edited PDF with the Download button, and returns its name and contents. */
+export async function download(page: Page) {
+  const saved = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download" }).click();
+  const file = await saved;
+  return { name: file.suggestedFilename(), pdf: await readFile(await file.path()) };
 }
 
 /** Checks that every line of a finished box is in the exported text where the preview draws it, within 0.25 pt. */

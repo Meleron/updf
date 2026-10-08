@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openInEditor, pageImage } from "./helpers";
-import { textBoxInput } from "./text-boxes";
+import { readText } from "./pdf";
+import { download, expectNear, textBoxInput } from "./text-boxes";
 
 test.use({ locale: "en-US" });
 
@@ -120,4 +121,33 @@ test("a replacement keeps its original font until a character or style needs ano
   // So does bold, which the PDF has no face for.
   await bar(page).getByRole("button", { name: "Bold" }).click();
   expect(await fontFamily()).toMatch(/^"?Arimo"?$/);
+});
+
+test("a line edited back to its own text downloads in its original font, place and width", async ({ page }) => {
+  await openFontsPdf(page);
+  for (const line of lines) {
+    await pageImage(page, 1, 1).click({ position: { x: 80 * scale, y: (line.baseline - 3) * scale } });
+    // A line left as it is isn't replaced, so it's changed, then changed back.
+    await page.keyboard.type("e");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Escape");
+    await expect(textBoxInput(page)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.getByTestId("text-box")).toHaveCount(lines.length);
+
+  const exported = await readText((await download(page)).pdf, 1);
+
+  // Both are in the download: the original under its cover, and the replacement.
+  for (const line of lines) {
+    const [original, replacement] = exported.filter((text) => text.text === line.text);
+    expect(replacement, line.text).toBeDefined();
+    expect(replacement.font, line.text).toBe(original.font);
+    expectNear(replacement.x, original.x, 0.01);
+    expectNear(replacement.baseline, original.baseline, 0.01);
+    // The PDF's subsets have no space, so a space takes the similar font's, about 0.01 pt wider or narrower.
+    expectNear(replacement.width, original.width, 0.05);
+  }
 });

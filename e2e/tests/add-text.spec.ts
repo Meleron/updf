@@ -1,13 +1,12 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 import { openInEditor, pageImage } from "./helpers";
+import { readText } from "./pdf";
 import {
   addBox,
-  addBoxAt,
   clickPage,
-  defaultStyle,
+  download,
   expectExportedAsPreviewed,
   expectNear,
-  exportText,
   notoAscent,
   notoLineHeight,
   openAt100Percent,
@@ -84,16 +83,15 @@ test("adds multi-line Polish text where the page is clicked, in Noto with its li
   expect(loaded).toContain("Noto Sans");
 });
 
-test("the exported PDF has the text where the preview shows it", async ({ page, request }) => {
+test("the downloaded PDF has the text where the preview shows it", async ({ page }) => {
   await openAt100Percent(page);
-  const lines = ["Zażółć gęślą jaźń", "Pchnąć w tę łódź jeża", "WAVE AVAVAV Τέλος Конец"];
-  const position = await addBoxAt(page, 100, 120);
-  await page.keyboard.type(lines.join("\n"));
+  await addBox(page, 100, 120);
+  await page.keyboard.type(["Zażółć gęślą jaźń", "Pchnąć w tę łódź jeża", "WAVE AVAVAV Τέλος Конец"].join("\n"));
   await page.keyboard.press("Escape");
 
-  const exported = await exportText(request, [{ ...position, lines, style: defaultStyle }]);
+  const { pdf } = await download(page);
 
-  await expectExportedAsPreviewed(page, page.getByTestId("text-box"), exported);
+  await expectExportedAsPreviewed(page, page.getByTestId("text-box"), await readText(pdf, 1));
 });
 
 test("text boxes keep their place on the page when zooming", async ({ page }) => {

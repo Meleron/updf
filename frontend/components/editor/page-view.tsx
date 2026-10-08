@@ -2,7 +2,7 @@
 
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { PdfPage } from "@/components/editor/pdf-page";
 import { TextBox } from "@/components/editor/text-box";
 import { pointOnPage, toPixels } from "@/lib/coordinates";
@@ -34,11 +34,18 @@ type Props = {
   editingInput: React.RefObject<HTMLTextAreaElement | null>;
   dispatch: React.Dispatch<EditorAction>;
   onReplace: () => void;
+  /** Called once the page's lines are read, with the PDF's fonts that replacements on it can be drawn in, by name. */
+  onFonts: (index: number, fonts: Map<string, PdfFont>) => void;
   onDelete: (id: string) => void;
   /** Moves the focus away from the selected box. */
   onLeave: () => void;
   ref: React.Ref<HTMLDivElement>;
 };
+
+/** The fonts replacements on a page are drawn in, by name. */
+function fontsByName(lines: TextLine[]): Map<string, PdfFont> {
+  return new Map(lines.flatMap((line) => (line.pdfFont ? [[line.pdfFont.name, line.pdfFont]] : [])));
+}
 
 /**
  * One page in the editor, with its edits. With Add text, a click adds a box. With Select, the existing line under the
@@ -46,7 +53,7 @@ type Props = {
  * colour from the drawn page, which holds only the PDF (edits are separate elements above it).
  */
 export function PageView(props: Props) {
-  const { index, page, size, zoom, root, label, tool, edits, selected, editing, untouched, editingInput, dispatch, onReplace, onDelete, onLeave, ref } =
+  const { index, page, size, zoom, root, label, tool, edits, selected, editing, untouched, editingInput, dispatch, onReplace, onFonts, onDelete, onLeave, ref } =
     props;
   const t = useTranslations("Editor");
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -62,10 +69,11 @@ export function PageView(props: Props) {
         reading.current ??= readLines(page).then((read) => {
           addFontFaces(read.flatMap((line) => line.pdfFont ?? []));
           setLines(read);
+          onFonts(index, fontsByName(read));
         });
       }
     },
-    [page],
+    [page, index, onFonts],
   );
 
   /** The line under the pointer, if the pointer is on the page itself (not on an edit) and the line isn't replaced. */
@@ -117,8 +125,7 @@ export function PageView(props: Props) {
   }
 
   const outline = hovered && coverArea(hovered);
-  // The fonts replacements on this page were drawn in, by name.
-  const pdfFonts = new Map<string, PdfFont>(lines?.flatMap((line) => (line.pdfFont ? [[line.pdfFont.name, line.pdfFont]] : [])));
+  const pdfFonts = useMemo(() => fontsByName(lines ?? []), [lines]);
   return (
     <div
       ref={ref}

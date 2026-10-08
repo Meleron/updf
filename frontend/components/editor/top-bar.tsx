@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, MousePointer2, PanelLeft, Redo2, Type, Undo2, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, Loader2, MousePointer2, PanelLeft, Redo2, Type, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ToggleButton } from "@/components/editor/toggle-button";
@@ -33,15 +33,17 @@ type Props = {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  downloading: boolean;
+  onDownload: () => void;
 };
 
 function Separator() {
   return <div aria-hidden className="mx-1 hidden h-5 w-px bg-border sm:block" />;
 }
 
-/** Download stays disabled until its feature exists. */
 export function TopBar(props: Props) {
-  const { fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails, tool, onTool, canUndo, canRedo, onUndo, onRedo } = props;
+  const { fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails, tool, onTool, canUndo, canRedo, onUndo, onRedo, downloading, onDownload } =
+    props;
   const t = useTranslations("Editor");
   const app = useTranslations("App");
   const percent = zoom === null ? null : `${Math.round(zoom * 100)}%`;
@@ -159,9 +161,10 @@ export function TopBar(props: Props) {
         <Separator />
         <LanguageSwitch />
         <ThemeToggle />
-        <Button disabled className="ml-1">
-          <Download />
-          <span className="sr-only sm:not-sr-only">{t("download")}</span>
+        {/* Not disabled while downloading, so it keeps the focus; the editor ignores clicks until the download is done. */}
+        <Button className="ml-1" aria-disabled={downloading} onClick={onDownload}>
+          {downloading ? <Loader2 className="animate-spin" aria-hidden /> : <Download aria-hidden />}
+          <span className="sr-only sm:not-sr-only">{downloading ? t("downloading") : t("download")}</span>
         </Button>
       </div>
     </header>

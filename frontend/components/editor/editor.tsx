@@ -2,9 +2,9 @@
 
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
-import { Info } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FormattingBar } from "@/components/editor/formatting-bar";
 import { editUi } from "@/components/editor/edit-focus";
@@ -12,10 +12,13 @@ import { PageView } from "@/components/editor/page-view";
 import { PdfPage } from "@/components/editor/pdf-page";
 import { textBoxHelpId, textBoxId } from "@/components/editor/text-box";
 import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
+import { useBackendUrl } from "@/components/backend-url";
 import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
+import { exportErrorCode, exportPdf, type ExportErrorCode } from "@/lib/api";
 import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
 import { canRedo, canUndo, editorReducer, initialState, isUntouched } from "@/lib/editor-state";
+import { forExport, type PdfFont } from "@/lib/pdf-fonts";
 import { fitWidth, wheelZoom } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -53,6 +56,17 @@ function isForControl(target: EventTarget | null): boolean {
 function isUndoKey(event: KeyboardEvent): boolean {
   const key = event.key.toLowerCase();
   return (event.ctrlKey || event.metaKey) && !event.altKey && (key === "z" || (event.code === "KeyZ" && !/^[a-z]$/.test(key)));
+}
+
+/** Saves a file through the browser's download. */
+function save(file: Blob, name: string) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  // Later, as Safari and Firefox can still be reading the file after the click.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 /** Loads every page's size first, so the layout and the zoom are right from the first frame. */
@@ -97,6 +111,8 @@ function LoadFailed() {
 
 function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const t = useTranslations("Editor");
+  const exportErrors = useTranslations("ExportErrors");
+  const backendUrl = useBackendUrl();
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
   const [thumbnailPanel, setThumbnailPanel] = useState<HTMLElement | null>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
@@ -110,6 +126,13 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
   const zoomAnchor = useRef<ZoomAnchor | null>(null);
+  // Each page's fonts that replacements are drawn in, once its lines are read. A replacement's page has always been read.
+  const pdfFonts = useRef<Map<string, PdfFont>[]>([]);
+  const storeFonts = useCallback((index: number, fonts: Map<string, PdfFont>) => {
+    pdfFonts.current[index] = fonts;
+  }, []);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<ExportErrorCode | null>(null);
 
   /**
    * Undo or redo can remove the focused box, or disable the focused button. The focus then goes to the pages, not back
@@ -236,6 +259,24 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
     }
   }
 
+  // Clicking Download takes the focus from the box being typed in, which finishes its edit first. The edits stay.
+  async function download() {
+    if (downloading) {
+      return;
+    }
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const edits = state.edits.map((edit) => forExport(edit, edit.pdfFont && pdfFonts.current[edit.page]?.get(edit.pdfFont.name)));
+      const { pdf, fileName } = await exportPdf(backendUrl, file, { version: 1, edits });
+      save(pdf, fileName);
+    } catch (error) {
+      setDownloadError(exportErrorCode(error));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   function showPage(index: number) {
     pageElements.current[index].scrollIntoView({ block: "start" });
     setCurrentPage(index);
@@ -259,6 +300,8 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
         canRedo={canRedo(state)}
         onUndo={() => undoOrRedo("undo")}
         onRedo={() => undoOrRedo("redo")}
+        downloading={downloading}
+        onDownload={download}
       />
       <div className="relative flex min-h-0 flex-1">
         <nav
@@ -327,6 +370,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                     editingInput={editingInput}
                     dispatch={dispatch}
                     onReplace={showReplaceHint}
+                    onFonts={storeFonts}
                     onDelete={deleteBox}
                     onLeave={leaveBox}
                   />
@@ -350,9 +394,30 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
               />
             </div>
           )}
-          {/* Part of the edit, so dismissing it doesn't finish the replacement being typed. */}
-          {replaceHint && (
-            <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex justify-center">
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex flex-col items-center gap-2">
+            {/* Retry hides the banner, so the focus goes to the pages. */}
+            {downloadError && (
+              <div
+                role="alert"
+                className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border bg-surface py-2 pr-2 pl-4 text-sm shadow-lg"
+              >
+                <CircleAlert aria-hidden className="size-4 shrink-0 text-danger" />
+                <p>{exportErrors(downloadError)}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    scroller?.focus();
+                    download();
+                  }}
+                >
+                  {t("retry")}
+                </Button>
+              </div>
+            )}
+            {/* Part of the edit, so dismissing it doesn't finish the replacement being typed. */}
+            {replaceHint && (
               <div
                 {...editUi}
                 role="status"
@@ -365,8 +430,8 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                   {t("gotIt")}
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </main>
       </div>
     </div>

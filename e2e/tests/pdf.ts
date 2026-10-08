@@ -4,8 +4,11 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 // @ts-expect-error The worker module has no type declarations.
 Object.assign(globalThis, { pdfjsWorker: await import("pdfjs-dist/legacy/build/pdf.worker.mjs") });
 
-/** A run of text as a viewer shows it: in points from the top-left of the displayed page, at its baseline. */
-export type PdfText = { text: string; x: number; baseline: number; width: number };
+/**
+ * A run of text as a viewer shows it: in points from the top-left of the displayed page, at its baseline, with pdf.js's
+ * id for its (first) font, which is the same for every use of one font object in a document.
+ */
+export type PdfText = { text: string; x: number; baseline: number; width: number; font: string };
 
 /** Reads the text on one page (1-based) of a PDF. Runs that continue one another on a baseline are joined. */
 export async function readText(pdf: Buffer, pageNumber: number): Promise<PdfText[]> {
@@ -26,7 +29,7 @@ export async function readText(pdf: Buffer, pageNumber: number): Promise<PdfText
         last.text += item.str;
         last.width = x + item.width - last.x;
       } else {
-        texts.push({ text: item.str, x, baseline, width: item.width });
+        texts.push({ text: item.str, x, baseline, width: item.width, font: item.fontName });
       }
     }
     return texts;

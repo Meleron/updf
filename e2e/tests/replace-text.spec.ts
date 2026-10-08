@@ -1,12 +1,12 @@
-import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { fixture, openInEditor, pageImage, pick } from "./helpers";
+import { openInEditor, pageImage } from "./helpers";
 import { readText } from "./pdf";
 import {
   addBox,
+  download,
   expectExportedAsPreviewed,
-  notoAscent,
   openAt100Percent,
+  openDownloaded,
   pixelsPerPoint,
   textBoxInput,
   tool,
@@ -14,7 +14,6 @@ import {
 
 test.use({ locale: "en-US" });
 
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
 const hint = "Replaced text is hidden, not removed. Don't use this to remove sensitive information.";
 
 function bar(page: Page) {
@@ -176,53 +175,18 @@ test("pages with text don't show the scanned page hint", async ({ page }) => {
   await expect(page.getByText("No text to replace on this page.", { exact: false })).toBeHidden();
 });
 
-test("the exported PDF has the new text where the preview shows it, and the original covered", async ({ page, request }) => {
+test("the downloaded PDF has the new text where the preview shows it, and the original covered", async ({ page }) => {
   await openAt100Percent(page);
   await replaceAt(page, 100, 113);
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.type("Shorter.");
   await page.keyboard.press("Escape");
 
-  // The edit as the editor made it: the box's baseline on the original's (118 pt), and the cover from the preview.
-  const cover = await page.getByTestId("cover").evaluate((element: HTMLElement) => ({
-    x: parseFloat(element.style.left),
-    y: parseFloat(element.style.top),
-    width: parseFloat(element.style.width),
-    height: parseFloat(element.style.height),
-  }));
-  const edit = {
-    id: crypto.randomUUID(),
-    page: 0,
-    x: 72,
-    y: 118 - notoAscent * 14,
-    lines: ["Shorter."],
-    style: { font: "Noto Sans", size: 14, bold: false, italic: false, underline: false, color: "#000000", align: "left" },
-    cover: {
-      x: cover.x / pixelsPerPoint,
-      y: cover.y / pixelsPerPoint,
-      width: cover.width / pixelsPerPoint,
-      height: cover.height / pixelsPerPoint,
-      color: "#FFFFFF",
-    },
-  };
-  const response = await request.post(`${backendUrl}/api/pdf/export`, {
-    multipart: {
-      file: { name: "simple.pdf", mimeType: "application/pdf", buffer: readFileSync(fixture("simple.pdf")) },
-      edits: JSON.stringify({ version: 1, edits: [edit] }),
-    },
-  });
-  expect(response.status()).toBe(200);
-  const exported = await response.body();
-  await expectExportedAsPreviewed(page, page.getByTestId("text-box"), await readText(exported, 1));
+  const file = await download(page);
+  await expectExportedAsPreviewed(page, page.getByTestId("text-box"), await readText(file.pdf, 1));
 
-  // Open the export: past the new text, the original line's area is plain white.
-  await page.goto("/");
-  await pick(page, { name: "simple-edited.pdf", mimeType: "application/pdf", buffer: exported });
-  await expect(page).toHaveURL("/edit");
-  await page.getByRole("button", { name: /^Zoom: / }).click();
-  await page.getByRole("menuitemradio", { name: "100%", exact: true }).click();
-  const canvas = pageImage(page, 1, 1).locator("canvas");
-  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(Math.floor(595 * pixelsPerPoint));
+  // Open the download: past the new text, the original line's area is plain white.
+  const canvas = await openDownloaded(page, file);
   const inked = await canvas.evaluate((c: HTMLCanvasElement, area) => {
     const { data } = c.getContext("2d")!.getImageData(area.x, area.y, area.width, area.height);
     return data.filter((value, i) => i % 4 !== 3 && value < 250).length;
