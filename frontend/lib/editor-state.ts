@@ -77,6 +77,16 @@ export function isUntouched(state: EditorState, id: string): boolean {
   return !!edit && state.untouched?.id === id && JSON.stringify(edit) === JSON.stringify(state.untouched);
 }
 
+/** The state of a document opened with saved edits, with nothing to undo. */
+export function stateWithEdits(edits: TextEdit[]): EditorState {
+  return { ...initialState, edits, lastStep: edits };
+}
+
+/** The edits as autosave keeps them: the box being typed in as if finished, so an empty or untouched one is left out. */
+export function editsToSave(state: EditorState): TextEdit[] {
+  return finishEditing(state).edits;
+}
+
 /** Whether there's a step to undo, counting the edit in progress, which undo finishes first. */
 export function canUndo(state: EditorState): boolean {
   return finishEditing(state).past.length > 0;

@@ -2,9 +2,9 @@
 
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
-import { CircleAlert, Info } from "lucide-react";
+import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FormattingBar } from "@/components/editor/formatting-bar";
 import { editUi } from "@/components/editor/edit-focus";
@@ -16,9 +16,12 @@ import { useBackendUrl } from "@/components/backend-url";
 import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
 import { exportErrorCode, exportPdf, type ExportErrorCode } from "@/lib/api";
+import { autosaver } from "@/lib/autosave";
 import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
-import { canRedo, canUndo, editorReducer, initialState, isUntouched } from "@/lib/editor-state";
+import { documentRepository, type SavedDocument } from "@/lib/document-repository";
+import { canRedo, canUndo, editorReducer, editsToSave, isUntouched, stateWithEdits } from "@/lib/editor-state";
 import { forExport, type PdfFont } from "@/lib/pdf-fonts";
+import { pdfFontsByName, readLines } from "@/lib/text-lines";
 import { fitWidth, wheelZoom } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -90,7 +93,7 @@ export function Editor({ document }: { document: OpenedDocument }) {
   if (failed) {
     return <LoadFailed />;
   }
-  return pages && <EditorView file={document.file} pages={pages} />;
+  return pages && <EditorView file={document.file} saved={document.saved} pages={pages} />;
 }
 
 function LoadFailed() {
@@ -109,7 +112,7 @@ function LoadFailed() {
   );
 }
 
-function EditorView({ file, pages }: { file: File; pages: Page[] }) {
+function EditorView({ file, saved, pages }: { file: File; saved?: SavedDocument; pages: Page[] }) {
   const t = useTranslations("Editor");
   const exportErrors = useTranslations("ExportErrors");
   const backendUrl = useBackendUrl();
@@ -119,20 +122,45 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const [zoomSetting, setZoomSetting] = useState<ZoomSetting>("fit");
   const [thumbnailsOpen, setThumbnailsOpen] = useState(() => window.matchMedia(wideScreen).matches);
   const [currentPage, setCurrentPage] = useState(0);
-  const [state, dispatch] = useReducer(editorReducer, initialState);
+  const [state, dispatch] = useReducer(editorReducer, saved?.edits.edits ?? [], stateWithEdits);
   const selected = state.edits.find((edit) => edit.id === state.selected);
   const untouched = state.untouched && isUntouched(state, state.untouched.id) ? state.untouched.id : null;
   const editingInput = useRef<HTMLTextAreaElement>(null);
   const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
   const zoomAnchor = useRef<ZoomAnchor | null>(null);
-  // Each page's fonts that replacements are drawn in, once its lines are read. A replacement's page has always been read.
+  // Each page's fonts that replacements are drawn in, once its lines are read.
   const pdfFonts = useRef<Map<string, PdfFont>[]>([]);
   const storeFonts = useCallback((index: number, fonts: Map<string, PdfFont>) => {
     pdfFonts.current[index] = fonts;
   }, []);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<ExportErrorCode | null>(null);
+  const autosave = useRef<ReturnType<typeof autosaver>>(null);
+  const [autosaveOff, setAutosaveOff] = useState(false);
+
+  // A newly opened file replaces the saved document first. A change still waiting is saved when the editor or the
+  // page closes (a reload or a closed tab doesn't unmount the editor). Chromium drops IndexedDB writes started in
+  // `pagehide` on a reload, but keeps those from `beforeunload`; mobile browsers may fire only `pagehide`.
+  useEffect(() => {
+    const id = saved?.id ?? crypto.randomUUID();
+    if (!saved) {
+      documentRepository.saveFile(id, file).catch(() => setAutosaveOff(true));
+    }
+    const saver = autosaver((edits) => documentRepository.saveEdits(id, edits), () => setAutosaveOff(true));
+    autosave.current = saver;
+    window.addEventListener("beforeunload", saver.flush);
+    window.addEventListener("pagehide", saver.flush);
+    return () => {
+      window.removeEventListener("beforeunload", saver.flush);
+      window.removeEventListener("pagehide", saver.flush);
+      saver.flush();
+    };
+  }, [file, saved]);
+
+  // The same array until the edits change, so selecting, switching tools or other renders don't save.
+  const toSave = useMemo(() => editsToSave(state), [state]);
+  useEffect(() => autosave.current?.schedule(toSave), [toSave]);
 
   /**
    * Undo or redo can remove the focused box, or disable the focused button. The focus then goes to the pages, not back
@@ -267,6 +295,9 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
     setDownloading(true);
     setDownloadError(null);
     try {
+      // A restored replacement can be on a page that hasn't been drawn, so its lines haven't been read.
+      const unread = new Set(state.edits.filter((edit) => edit.pdfFont && !pdfFonts.current[edit.page]).map((edit) => edit.page));
+      await Promise.all([...unread].map(async (index) => storeFonts(index, pdfFontsByName(await readLines(pages[index].proxy)))));
       const edits = state.edits.map((edit) => forExport(edit, edit.pdfFont && pdfFonts.current[edit.page]?.get(edit.pdfFont.name)));
       const { pdf, fileName } = await exportPdf(backendUrl, file, { version: 1, edits });
       save(pdf, fileName);
@@ -414,6 +445,15 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
                 >
                   {t("retry")}
                 </Button>
+              </div>
+            )}
+            {autosaveOff && (
+              <div
+                role="status"
+                className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border bg-surface py-2 pr-2 pl-4 text-sm shadow-lg"
+              >
+                <TriangleAlert aria-hidden className="size-4 shrink-0 text-warning" />
+                <p>{t("autosaveOff")}</p>
               </div>
             )}
             {/* Part of the edit, so dismissing it doesn't finish the replacement being typed. */}

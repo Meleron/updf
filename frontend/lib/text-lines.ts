@@ -227,6 +227,11 @@ export function underlines(rule: Rect, line: TextLine): boolean {
   );
 }
 
+/** The fonts replacements on a page are drawn in, by name. */
+export function pdfFontsByName(lines: TextLine[]): Map<string, PdfFont> {
+  return new Map(lines.flatMap((line) => (line.pdfFont ? [[line.pdfFont.name, line.pdfFont]] : [])));
+}
+
 /**
  * The lines of text on a page. Font names come from pdf.js's font objects, which exist once the page has been drawn
  * and the document was opened with `fontExtraProperties`.

@@ -21,6 +21,16 @@
     "choose": "Wybierz plik PDF",
     "checking": "Sprawdzanie pliku…"
   },
+  "Continue": {
+    "title": "Kontynuuj edycję {name}",
+    "edits": "Zapisano w tej przeglądarce · {count, plural, =0 {bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}"
+  },
+  "Replace": {
+    "title": "Zastąpić zapisany dokument?",
+    "description": "{name} i jego zmiany są zapisane w tej przeglądarce. Otwarcie {newName} je zastąpi.",
+    "cancel": "Anuluj",
+    "confirm": "Zastąp"
+  },
   "Errors": {
     "not-a-pdf": "Ten plik nie jest plikiem PDF. Wybierz plik PDF.",
     "file-too-large": "Ten plik ma ponad 25 MB. Wybierz mniejszy plik PDF.",
@@ -64,7 +74,8 @@
     "replaceHint": "Zastąpiony tekst jest ukryty, a nie usunięty. Nie używaj tego do usuwania poufnych informacji.",
     "gotIt": "Rozumiem",
     "textBoxRole": "pole tekstowe",
-    "textBoxHelp": "Enter edytuje tekst. Strzałki przesuwają pole, z Shift o więcej. Delete je usuwa."
+    "textBoxHelp": "Enter edytuje tekst. Strzałki przesuwają pole, z Shift o więcej. Delete je usuwa.",
+    "autosaveOff": "Autozapis jest wyłączony. Pobierz plik, aby zachować zmiany."
   },
   "Formatting": {
     "label": "Formatowanie",

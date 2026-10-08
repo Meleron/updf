@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canRedo, canUndo, defaultStyle, editorReducer, initialState, isUntouched, type EditorAction, type EditorState } from "./editor-state";
+import {
+  canRedo,
+  canUndo,
+  defaultStyle,
+  editorReducer,
+  editsToSave,
+  initialState,
+  isUntouched,
+  stateWithEdits,
+  type EditorAction,
+  type EditorState,
+} from "./editor-state";
 
 function addText(state: EditorState = initialState, id = "a") {
   return editorReducer(state, { type: "addText", id, page: 1, x: 72, y: 96 });
@@ -332,5 +343,26 @@ describe("undo and redo", () => {
 
     expect(retyped.past).toHaveLength(twoBoxes().past.length);
     expect(retyped.lastStep).toBe(retyped.edits);
+  });
+});
+
+describe("autosave", () => {
+  it("saves the box being typed in, but not an empty or untouched one", () => {
+    const typing = apply(addText(), { type: "changeText", id: "a", lines: ["Typed"] });
+    expect(editsToSave(typing)).toEqual(typing.edits);
+    expect(editsToSave(addText())).toEqual([]);
+    expect(editsToSave(editorReducer(initialState, { type: "addReplacement", edit: replacement }))).toEqual([]);
+  });
+
+  it("gives the same edits until they change, so selecting doesn't save", () => {
+    const state = twoBoxes();
+    expect(editsToSave(editorReducer(state, { type: "select", id: "a" }))).toBe(editsToSave(state));
+  });
+
+  it("restores saved edits with nothing to undo", () => {
+    const state = stateWithEdits(twoBoxes().edits);
+    expect(state.edits).toHaveLength(2);
+    expect(canUndo(state)).toBe(false);
+    expect(canUndo(editorReducer(state, { type: "delete", id: "a" }))).toBe(true);
   });
 });

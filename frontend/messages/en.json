@@ -21,6 +21,16 @@
     "choose": "Choose a PDF",
     "checking": "Checking the file…"
   },
+  "Continue": {
+    "title": "Continue editing {name}",
+    "edits": "Saved in this browser · {count, plural, =0 {no edits yet} one {# edit} other {# edits}}"
+  },
+  "Replace": {
+    "title": "Replace the saved document?",
+    "description": "{name} and its edits are saved in this browser. Opening {newName} replaces them.",
+    "cancel": "Cancel",
+    "confirm": "Replace"
+  },
   "Errors": {
     "not-a-pdf": "This file isn't a PDF. Choose a PDF file.",
     "file-too-large": "This file is over 25 MB. Choose a smaller PDF.",
@@ -64,7 +74,8 @@
     "replaceHint": "Replaced text is hidden, not removed. Don't use this to remove sensitive information.",
     "gotIt": "Got it",
     "textBoxRole": "text box",
-    "textBoxHelp": "Enter edits the text. The arrow keys move the box, by more with Shift. Delete removes it."
+    "textBoxHelp": "Enter edits the text. The arrow keys move the box, by more with Shift. Delete removes it.",
+    "autosaveOff": "Autosave is off. Download to keep your work."
   },
   "Formatting": {
     "label": "Formatting",

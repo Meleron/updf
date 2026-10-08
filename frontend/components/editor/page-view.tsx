@@ -10,7 +10,7 @@ import type { TextEdit } from "@/lib/edits";
 import type { EditorAction, Tool } from "@/lib/editor-state";
 import { addFontFaces, type PdfFont } from "@/lib/pdf-fonts";
 import { coverArea, isReplaced, replacementFor, sampleColors } from "@/lib/replace";
-import { readLines, type TextLine } from "@/lib/text-lines";
+import { pdfFontsByName, readLines, type TextLine } from "@/lib/text-lines";
 import { cn } from "@/lib/utils";
 
 /** The band around a line whose colour the cover takes, in points. */
@@ -42,11 +42,6 @@ type Props = {
   ref: React.Ref<HTMLDivElement>;
 };
 
-/** The fonts replacements on a page are drawn in, by name. */
-function fontsByName(lines: TextLine[]): Map<string, PdfFont> {
-  return new Map(lines.flatMap((line) => (line.pdfFont ? [[line.pdfFont.name, line.pdfFont]] : [])));
-}
-
 /**
  * One page in the editor, with its edits. With Add text, a click adds a box. With Select, the existing line under the
  * pointer is outlined, and a click replaces it. Lines are read once the page has been drawn, and covers sample their
@@ -69,7 +64,7 @@ export function PageView(props: Props) {
         reading.current ??= readLines(page).then((read) => {
           addFontFaces(read.flatMap((line) => line.pdfFont ?? []));
           setLines(read);
-          onFonts(index, fontsByName(read));
+          onFonts(index, pdfFontsByName(read));
         });
       }
     },
@@ -125,7 +120,7 @@ export function PageView(props: Props) {
   }
 
   const outline = hovered && coverArea(hovered);
-  const pdfFonts = useMemo(() => fontsByName(lines ?? []), [lines]);
+  const pdfFonts = useMemo(() => pdfFontsByName(lines ?? []), [lines]);
   return (
     <div
       ref={ref}

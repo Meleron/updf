@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { AppHeader } from "@/components/app-header";
-import { PdfDropZone } from "@/components/pdf-drop-zone";
+import { Dashboard } from "@/components/dashboard";
 
 export default async function Home() {
   const t = await getTranslations("Home");
@@ -13,7 +13,7 @@ export default async function Home() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("title")}</h1>
           <p className="text-base text-text-secondary">{t("description")}</p>
         </div>
-        <PdfDropZone />
+        <Dashboard />
       </main>
     </>
   );

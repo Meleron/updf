@@ -4,14 +4,28 @@ import { FileUp, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { useOpenDocument } from "@/components/open-document";
+import { useOpenDocument, type OpenedDocument } from "@/components/open-document";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { documentRepository, type SavedDocument } from "@/lib/document-repository";
 import { checkPdf, type UploadError } from "@/lib/pdf-check";
 import { cn } from "@/lib/utils";
 
-/** Takes a PDF by drop or file picker, checks it in the browser and opens it in the editor. */
+/**
+ * Takes a PDF by drop or file picker, checks it in the browser and opens it in the editor. Opening it replaces the
+ * autosaved document, so if that has edits, the user confirms first.
+ */
 export function PdfDropZone() {
   const t = useTranslations("Upload");
+  const replace = useTranslations("Replace");
   const errors = useTranslations("Errors");
   const router = useRouter();
   const { open } = useOpenDocument();
@@ -19,6 +33,8 @@ export function PdfDropZone() {
   const [dragging, setDragging] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<UploadError | null>(null);
+  // A checked file waiting for the user to confirm replacing the saved document.
+  const [pending, setPending] = useState<{ document: OpenedDocument; saved: SavedDocument } | null>(null);
 
   async function accept(file: File | undefined) {
     if (!file || checking) {
@@ -32,8 +48,25 @@ export function PdfDropZone() {
       setChecking(false);
       return;
     }
-    open({ file, pdf: result.document });
+    const document = { file, pdf: result.document };
+    // Loaded now, not when the dashboard opened, so a file picked before that finished still asks.
+    const saved = await documentRepository.load().catch(() => null);
+    if (saved && saved.edits.edits.length > 0) {
+      setPending({ document, saved });
+      setChecking(false);
+    } else {
+      proceed(document);
+    }
+  }
+
+  function proceed(document: OpenedDocument) {
+    open(document);
     router.push("/edit");
+  }
+
+  function cancel() {
+    pending?.document.pdf.loadingTask.destroy();
+    setPending(null);
   }
 
   return (
@@ -88,6 +121,27 @@ export function PdfDropZone() {
           {errors(error)}
         </p>
       )}
+      <AlertDialog open={!!pending} onOpenChange={(isOpen) => !isOpen && cancel()}>
+        <AlertDialogContent>
+          <AlertDialogTitle>{replace("title")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {replace("description", { name: pending?.saved.file.name ?? "", newName: pending?.document.file.name ?? "" })}
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{replace("cancel")}</AlertDialogCancel>
+            {/* Closes the dialog itself: closing it otherwise cancels, which would close the PDF being opened. */}
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                setPending(null);
+                proceed(pending!.document);
+              }}
+            >
+              {replace("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -54,12 +54,18 @@ export async function openAt100Percent(page: Page) {
 }
 
 /**
- * Opens a downloaded copy of simple.pdf in the editor at 100% zoom, and returns its page's canvas once it's drawn at
+ * Opens a downloaded copy of simple.pdf, in place of the autosaved original, in the editor at 100% zoom, and returns its page's canvas once it's drawn at
  * that size, where a point is 4/3 of a canvas pixel.
  */
 export async function openDownloaded(page: Page, file: { name: string; pdf: Buffer }) {
   await page.goto("/");
   await pick(page, { name: file.name, mimeType: "application/pdf", buffer: file.pdf });
+  // The edited document replaces the autosaved one, which asks first if its edits were saved by now.
+  const replace = page.getByRole("alertdialog").getByRole("button", { name: "Replace" });
+  await expect(replace.or(page.getByTestId("pages"))).toBeVisible();
+  if (await replace.isVisible()) {
+    await replace.click();
+  }
   await expect(page).toHaveURL("/edit");
   await zoomTo100Percent(page);
   const canvas = pageImage(page, 1, 1).locator("canvas");
