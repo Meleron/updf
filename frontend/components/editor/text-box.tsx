@@ -33,7 +33,8 @@ type Props = {
   onSelect: () => void;
   onEdit: () => void;
   onChange: (lines: string[]) => void;
-  onMove: (x: number, y: number) => void;
+  /** `nudge`: moved with the arrow keys. */
+  onMove: (x: number, y: number, nudge?: boolean) => void;
   /** Ends typing. The box stays selected. */
   onFinish: () => void;
   /** Focus has gone elsewhere. */
@@ -143,7 +144,7 @@ export function TextBox(props: Props) {
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;
       const to = onPage(edit.x + arrow[0] * step, edit.y + arrow[1] * step);
-      onMove(to.x, to.y);
+      onMove(to.x, to.y, true);
     } else if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
       onDelete();

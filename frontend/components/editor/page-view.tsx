@@ -175,7 +175,7 @@ export function PageView(props: Props) {
           onSelect={() => dispatch({ type: "select", id: edit.id })}
           onEdit={() => dispatch({ type: "edit", id: edit.id })}
           onChange={(lines) => dispatch({ type: "changeText", id: edit.id, lines })}
-          onMove={(x, y) => dispatch({ type: "move", id: edit.id, x, y })}
+          onMove={(x, y, nudge) => dispatch({ type: "move", id: edit.id, x, y, nudge })}
           onFinish={() => dispatch({ type: "finishEditing" })}
           onDeselect={() => dispatch({ type: "deselect" })}
           onLeave={onLeave}

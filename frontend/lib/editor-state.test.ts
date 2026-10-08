@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultStyle, editorReducer, initialState, type EditorAction, type EditorState } from "./editor-state";
+import { canRedo, canUndo, defaultStyle, editorReducer, initialState, type EditorAction, type EditorState } from "./editor-state";
 
 function addText(state: EditorState = initialState, id = "a") {
   return editorReducer(state, { type: "addText", id, page: 1, x: 72, y: 96 });
@@ -152,5 +152,144 @@ describe("editorReducer", () => {
     );
 
     expect(state.edits).toEqual([]);
+  });
+});
+
+describe("undo and redo", () => {
+  const lines = (state: EditorState) => state.edits.map((edit) => edit.lines.join("\n"));
+  const undo = { type: "undo" } as const;
+  const redo = { type: "redo" } as const;
+
+  it("undoes and redoes a new box with its text, as one step once the edit finishes", () => {
+    const typed = apply(addText(), { type: "changeText", id: "a", lines: ["A"] }, { type: "changeText", id: "a", lines: ["Ab"] }, { type: "finishEditing" });
+
+    const undone = editorReducer(typed, undo);
+    expect(undone.edits).toEqual([]);
+    expect(lines(editorReducer(undone, redo))).toEqual(["Ab"]);
+  });
+
+  it("undoes a later edit of a box's text as its own step", () => {
+    const edited = apply(twoBoxes(), { type: "edit", id: "a" }, { type: "changeText", id: "a", lines: ["A2"] }, { type: "deselect" });
+
+    expect(lines(edited)).toEqual(["A2", "B"]);
+    expect(lines(editorReducer(edited, undo))).toEqual(["A", "B"]);
+    expect(lines(apply(edited, undo, undo))).toEqual(["A"]);
+  });
+
+  it("undoes a style change, a move and a delete, each as one step", () => {
+    const changed = apply(
+      twoBoxes(),
+      { type: "select", id: "a" },
+      { type: "setStyle", style: { bold: true } },
+      { type: "move", id: "a", x: 10, y: 20 },
+      { type: "delete", id: "b" },
+    );
+
+    const steps = [changed, editorReducer(changed, undo), apply(changed, undo, undo), apply(changed, undo, undo, undo)];
+    expect(steps.map((state) => state.edits.map(({ id, x, style }) => `${id} ${x} ${style.bold}`))).toEqual([
+      ["a 10 true"],
+      ["a 10 true", "b 72 false"],
+      ["a 72 true", "b 72 false"],
+      ["a 72 false", "b 72 false"],
+    ]);
+    expect(apply(changed, undo, undo, undo, redo, redo, redo).edits).toEqual(changed.edits);
+  });
+
+  it("counts arrow presses on a box in a row as one move, and a drag as its own", () => {
+    const nudged = apply(
+      twoBoxes(),
+      { type: "select", id: "a" },
+      { type: "move", id: "a", x: 80, y: 96, nudge: true },
+      { type: "move", id: "a", x: 81, y: 96, nudge: true },
+      { type: "move", id: "a", x: 200, y: 96 },
+      { type: "move", id: "a", x: 201, y: 96, nudge: true },
+    );
+
+    expect(apply(nudged, undo).edits[0].x).toBe(200);
+    expect(apply(nudged, undo, undo).edits[0].x).toBe(81);
+    expect(apply(nudged, undo, undo, undo).edits[0].x).toBe(72);
+  });
+
+  it("doesn't join a move to the step before it after an arrow press that couldn't move the box", () => {
+    const nudged = apply(
+      twoBoxes(),
+      { type: "select", id: "a" },
+      { type: "move", id: "a", x: 72, y: 96, nudge: true },
+      { type: "move", id: "a", x: 73, y: 96, nudge: true },
+    );
+
+    expect(lines(apply(nudged, undo))).toEqual(["A", "B"]);
+  });
+
+  it("can't undo when finishing the edit in progress would only discard an empty box", () => {
+    expect(canUndo(addText())).toBe(false);
+    expect(canUndo(apply(addText(), { type: "changeText", id: "a", lines: ["A"] }))).toBe(true);
+  });
+
+  it("makes typing and formatting while typing part of the edit", () => {
+    const typing = apply(addText(), { type: "changeText", id: "a", lines: ["A"] }, { type: "setStyle", style: { bold: true } });
+
+    expect(typing.past).toEqual([]);
+    expect(editorReducer(typing, { type: "finishEditing" }).past).toEqual([[]]);
+  });
+
+  it("finishes the edit in progress before undoing, so undo takes back the typing", () => {
+    const typing = apply(twoBoxes(), { type: "edit", id: "a" }, { type: "changeText", id: "a", lines: ["A2"] });
+
+    const undone = editorReducer(typing, undo);
+    expect(lines(undone)).toEqual(["A", "B"]);
+    expect(undone.editing).toBeNull();
+    expect(lines(editorReducer(undone, redo))).toEqual(["A2", "B"]);
+  });
+
+  it("records nothing for actions that change no edit, and nothing for a box left empty", () => {
+    const state = apply(
+      twoBoxes(),
+      { type: "select", id: "a" },
+      { type: "edit", id: "a" },
+      { type: "deselect" },
+      { type: "setTool", tool: "text" },
+      { type: "addText", id: "c", page: 1, x: 0, y: 0 },
+      { type: "finishEditing" },
+    );
+
+    expect(state.past).toHaveLength(twoBoxes().past.length);
+  });
+
+  it("clears redo when a new step is taken", () => {
+    const undone = apply(twoBoxes(), undo);
+    expect(undone.future).toHaveLength(1);
+
+    const moved = apply(undone, { type: "move", id: "a", x: 0, y: 0 });
+    expect(moved.future).toEqual([]);
+    expect(editorReducer(moved, redo).edits).toEqual(moved.edits);
+  });
+
+  it("can undo once there's a step or a box being typed in, and redo once there's an undone step", () => {
+    expect([canUndo(initialState), canRedo(initialState)]).toEqual([false, false]);
+    expect([canUndo(twoBoxes()), canRedo(twoBoxes())]).toEqual([true, false]);
+    expect(canRedo(apply(twoBoxes(), undo))).toBe(true);
+    expect(canUndo(apply(twoBoxes(), undo, undo))).toBe(false);
+  });
+
+  it("does nothing at either end of the history", () => {
+    expect(editorReducer(initialState, undo).edits).toEqual([]);
+    expect(editorReducer(initialState, redo).edits).toEqual([]);
+    expect(editorReducer(twoBoxes(), redo).edits).toEqual(twoBoxes().edits);
+  });
+
+  it("keeps the selection only on a box that still exists", () => {
+    const selected = apply(twoBoxes(), { type: "select", id: "b" });
+
+    expect(editorReducer(selected, undo).selected).toBeNull();
+    expect(apply(selected, { type: "select", id: "a" }, undo).selected).toBe("a");
+  });
+
+  it("has nothing to undo after typing that ends with the text it started with", () => {
+    const state = apply(initialState, { type: "addReplacement", edit: replacement }, { type: "finishEditing" }, { type: "edit", id: "r" });
+    const retyped = apply(state, { type: "changeText", id: "r", lines: ["Origina"] }, { type: "changeText", id: "r", lines: ["Original"] }, { type: "deselect" });
+
+    expect(retyped.past).toHaveLength(1);
+    expect(retyped.lastStep).toBe(retyped.edits);
   });
 });

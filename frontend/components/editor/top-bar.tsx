@@ -29,17 +29,24 @@ type Props = {
   onToggleThumbnails: () => void;
   tool: Tool;
   onTool: (tool: Tool) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 function Separator() {
   return <div aria-hidden className="mx-1 hidden h-5 w-px bg-border sm:block" />;
 }
 
-/** Undo, redo and Download stay disabled until their features exist. */
-export function TopBar({ fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails, tool, onTool }: Props) {
+/** Download stays disabled until its feature exists. */
+export function TopBar(props: Props) {
+  const { fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, onToggleThumbnails, tool, onTool, canUndo, canRedo, onUndo, onRedo } = props;
   const t = useTranslations("Editor");
   const app = useTranslations("App");
   const percent = zoom === null ? null : `${Math.round(zoom * 100)}%`;
+  // The editor renders only in the browser.
+  const [undoKeys, redoKeys] = /Mac|iPhone|iPad/.test(navigator.userAgent) ? ["⌘Z", "⇧⌘Z"] : ["Ctrl+Z", "Ctrl+Shift+Z"];
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-surface px-2 sm:px-4">
@@ -82,10 +89,26 @@ export function TopBar({ fileName, zoom, zoomSetting, onZoom, thumbnailsOpen, on
           </ToggleButton>
         </div>
         <Separator />
-        <Button variant="ghost" size="icon" disabled aria-label={t("undo")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("undo")}
+          aria-keyshortcuts="Control+Z Meta+Z"
+          title={`${t("undo")} (${undoKeys})`}
+          disabled={!canUndo}
+          onClick={onUndo}
+        >
           <Undo2 />
         </Button>
-        <Button variant="ghost" size="icon" disabled aria-label={t("redo")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("redo")}
+          aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"
+          title={`${t("redo")} (${redoKeys})`}
+          disabled={!canRedo}
+          onClick={onRedo}
+        >
           <Redo2 />
         </Button>
         <Separator />

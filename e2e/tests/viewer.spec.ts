@@ -107,8 +107,8 @@ test("the top bar has the file name and the editor's controls, with Download the
   const bar = page.getByRole("banner");
 
   await expect(bar.getByRole("heading", { name: "simple.pdf" })).toBeVisible();
-  await expect(bar.getByRole("button", { name: "Undo" })).toBeDisabled();
-  await expect(bar.getByRole("button", { name: "Redo" })).toBeDisabled();
+  await expect(bar.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Redo" })).toBeVisible();
   await expect(bar.getByRole("button", { name: /^Zoom: \d+%$/ })).toBeVisible();
   await expect(bar.getByRole("button", { name: "Language EN" })).toBeVisible();
   await expect(bar.getByRole("button", { name: "Toggle theme" })).toBeVisible();

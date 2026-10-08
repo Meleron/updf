@@ -13,6 +13,14 @@ export interface EditorState {
   editing: string | null;
   /** The style used last, given to new text boxes. */
   style: TextStyle;
+  /** The edits before each step that can be undone, oldest first. */
+  past: TextEdit[][];
+  /** The edits after each step that can be redone, next first. */
+  future: TextEdit[][];
+  /** The edits as of the last step. They differ from `edits` while a box is being typed in. */
+  lastStep: TextEdit[];
+  /** The box the last step moved with the arrow keys, so the next press joins that step. */
+  nudged: string | null;
 }
 
 export type EditorAction =
@@ -23,10 +31,13 @@ export type EditorAction =
   | { type: "edit"; id: string }
   | { type: "changeText"; id: string; lines: string[] }
   | { type: "setStyle"; style: Partial<TextStyle> }
-  | { type: "move"; id: string; x: number; y: number }
+  /** `nudge`: a move with the arrow keys. Presses in a row on one box are one step. */
+  | { type: "move"; id: string; x: number; y: number; nudge?: boolean }
   | { type: "finishEditing" }
   | { type: "deselect" }
-  | { type: "delete"; id: string };
+  | { type: "delete"; id: string }
+  | { type: "undo" }
+  | { type: "redo" };
 
 // The colour of the text in the PDF, not an interface colour.
 export const defaultStyle: TextStyle = {
@@ -39,24 +50,83 @@ export const defaultStyle: TextStyle = {
   align: "left",
 };
 
-export const initialState: EditorState = { edits: [], tool: "select", selected: null, editing: null, style: defaultStyle };
+const noEdits: TextEdit[] = [];
 
-/** Ends typing in a box, which stays selected. A box left empty is discarded. */
+export const initialState: EditorState = {
+  edits: noEdits,
+  tool: "select",
+  selected: null,
+  editing: null,
+  style: defaultStyle,
+  past: [],
+  future: [],
+  lastStep: noEdits,
+  nudged: null,
+};
+
+/** Whether there's a step to undo, counting the edit in progress, which undo finishes first. */
+export function canUndo(state: EditorState): boolean {
+  return finishEditing(state).past.length > 0;
+}
+
+export function canRedo(state: EditorState): boolean {
+  return state.future.length > 0;
+}
+
+/**
+ * Makes the edits a step that can be undone, if they changed since the last one. While a box is being typed in, the
+ * step waits until the edit finishes, so typing and formatting during it are part of that step.
+ */
+function record(state: EditorState, joinLast = false): EditorState {
+  if (state.editing !== null || state.edits === state.lastStep) {
+    return state;
+  }
+  // Typing that ends with the text it started with isn't a step.
+  if (JSON.stringify(state.edits) === JSON.stringify(state.lastStep)) {
+    return { ...state, lastStep: state.edits };
+  }
+  return { ...state, past: joinLast ? state.past : [...state.past, state.lastStep], future: [], lastStep: state.edits };
+}
+
+/** Ends typing in a box, which stays selected, and records the edit. A box left empty is discarded. */
 function finishEditing(state: EditorState): EditorState {
   const edit = state.edits.find((e) => e.id === state.editing);
   if (!edit) {
     return state;
   }
   const empty = edit.lines.every((line) => line.trim() === "");
-  return {
+  return record({
     ...state,
     edits: empty ? state.edits.filter((e) => e !== edit) : state.edits,
     selected: empty ? null : state.selected,
     editing: null,
-  };
+  });
+}
+
+/** Shows the edits of another step. The selection stays only on a box that still exists. */
+function restore(state: EditorState, edits: TextEdit[], past: TextEdit[][], future: TextEdit[][]): EditorState {
+  const selected = edits.some((edit) => edit.id === state.selected) ? state.selected : null;
+  return { ...state, edits, past, future, lastStep: edits, selected, nudged: null };
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  if (action.type === "undo" || action.type === "redo") {
+    const finished = finishEditing(state);
+    const { past, future, edits } = finished;
+    if (action.type === "undo") {
+      return past.length === 0 ? finished : restore(finished, past[past.length - 1], past.slice(0, -1), [edits, ...future]);
+    }
+    return future.length === 0 ? finished : restore(finished, future[0], [...past, edits], future.slice(1));
+  }
+  const next = apply(state, action);
+  if (next === state) {
+    return state;
+  }
+  const nudge = action.type === "move" && action.nudge ? action.id : null;
+  return { ...record(next, nudge !== null && nudge === state.nudged), nudged: nudge };
+}
+
+function apply(state: EditorState, action: Exclude<EditorAction, { type: "undo" | "redo" }>): EditorState {
   switch (action.type) {
     case "setTool":
       return { ...state, tool: action.tool };
@@ -98,6 +168,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, edits: state.edits.map((e) => (e === edit ? { ...e, style } : e)), style: { ...style, font } };
     }
     case "move":
+      // An arrow press at the page's edge can't move the box, and isn't a step.
+      if (state.edits.some((edit) => edit.id === action.id && edit.x === action.x && edit.y === action.y)) {
+        return state;
+      }
       // Only the text moves: a replacement's cover stays over the original.
       return {
         ...state,

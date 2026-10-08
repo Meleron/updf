@@ -4,7 +4,8 @@ import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useTranslations } from "next-intl";
 import { Info } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { FormattingBar } from "@/components/editor/formatting-bar";
 import { editUi } from "@/components/editor/edit-focus";
 import { PageView } from "@/components/editor/page-view";
@@ -14,7 +15,7 @@ import { TopBar, type ZoomSetting } from "@/components/editor/top-bar";
 import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
 import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
-import { editorReducer, initialState } from "@/lib/editor-state";
+import { canRedo, canUndo, editorReducer, initialState } from "@/lib/editor-state";
 import { fitWidth } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
@@ -27,15 +28,28 @@ const thumbnailWidth = 120;
 const wideScreen = "(min-width: 768px)";
 const replaceHintKey = "updf.replaceHint";
 
+/** Whether a key press goes to a field with its own text editing, and its own undo. */
+function isTextField(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"));
+}
+
+/** Whether a key press goes to an open menu, which jumps to an item by its first letter. */
+function isInMenu(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && !!target.closest("[role=menu]");
+}
+
 /**
- * Whether a key press belongs to something else, so it must not trigger an editor shortcut: a text field, a menu
- * (which jumps to an item by its first letter), or the text edit in progress and its formatting bar.
+ * Whether a key press belongs to something else, so it must not trigger a tool shortcut: a text field, a menu, or the
+ * text edit in progress and its formatting bar.
  */
 function isForControl(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable || target.matches("input, textarea, select") || !!target.closest("[role=menu], [data-edit-ui]"))
-  );
+  return isTextField(target) || isInMenu(target) || (target instanceof HTMLElement && !!target.closest("[data-edit-ui]"));
+}
+
+/** Ctrl+Z (Cmd+Z on macOS), by the physical key on layouts without a Latin Z, as browsers do for text fields. */
+function isUndoKey(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return (event.ctrlKey || event.metaKey) && !event.altKey && (key === "z" || (event.code === "KeyZ" && !/^[a-z]$/.test(key)));
 }
 
 /** Loads every page's size first, so the layout and the zoom are right from the first frame. */
@@ -93,19 +107,38 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const pageElements = useRef<HTMLElement[]>([]);
   const zoomAnchor = useRef<number | null>(null);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.ctrlKey || event.metaKey || event.altKey || isForControl(event.target)) {
-        return;
-      }
-      if (event.key.toLowerCase() === "t") {
-        dispatch({ type: "setTool", tool: "text" });
-      } else if (event.key === "Escape") {
-        dispatch({ type: "setTool", tool: "select" });
-      }
+  /**
+   * Undo or redo can remove the focused box, or disable the focused button. The focus then goes to the pages, not back
+   * to the start of the document.
+   */
+  function undoOrRedo(type: "undo" | "redo") {
+    flushSync(() => dispatch({ type }));
+    const focused = document.activeElement;
+    if (focused === document.body || (focused instanceof HTMLButtonElement && focused.disabled)) {
+      scroller?.focus();
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+  }
+
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (isUndoKey(event) && !isTextField(event.target) && !isInMenu(event.target)) {
+      event.preventDefault();
+      undoOrRedo(event.shiftKey ? "redo" : "undo");
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey || isForControl(event.target)) {
+      return;
+    }
+    if (event.key.toLowerCase() === "t") {
+      dispatch({ type: "setTool", tool: "text" });
+    } else if (event.key === "Escape") {
+      dispatch({ type: "setTool", tool: "select" });
+    }
+  });
+
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => onKeyDown(event);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
   }, []);
 
   useEffect(() => {
@@ -186,6 +219,10 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
         onToggleThumbnails={() => setThumbnailsOpen((open) => !open)}
         tool={state.tool}
         onTool={(tool) => dispatch({ type: "setTool", tool })}
+        canUndo={canUndo(state)}
+        canRedo={canRedo(state)}
+        onUndo={() => undoOrRedo("undo")}
+        onRedo={() => undoOrRedo("redo")}
       />
       <div className="relative flex min-h-0 flex-1">
         <nav

@@ -125,7 +125,7 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 - Select with a click or Tab. Move by dragging or with the arrow keys. Delete with Delete.
 - There's no resizing, because the box size follows its text.
 
-**Undo and redo:** `Ctrl+Z` and `Ctrl+Shift+Z`. Each completed action is one step: create, finish an edit, change a style, move, delete.
+**Undo and redo:** `Ctrl+Z` and `Ctrl+Shift+Z` (`Cmd` on macOS), and the top bar buttons. Each completed action is one step: create, finish an edit, change a style, move, delete. A new box and its text are one step, and so is any formatting done while typing. Arrow presses in a row on one box are one move. While typing, the shortcuts undo typing in the box.
 
 **Zoom:** fits the page width by default, adjustable from 50% to 200%.
 
