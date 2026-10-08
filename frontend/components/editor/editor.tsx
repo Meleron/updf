@@ -16,9 +16,12 @@ import { Button } from "@/components/ui/button";
 import type { OpenedDocument } from "@/components/open-document";
 import { currentPage as pageInView, displaySize } from "@/lib/coordinates";
 import { canRedo, canUndo, editorReducer, initialState } from "@/lib/editor-state";
-import { fitWidth } from "@/lib/zoom";
+import { fitWidth, wheelZoom } from "@/lib/zoom";
 
 type Page = { proxy: PDFPageProxy; size: { width: number; height: number } };
+
+/** A point on a page that a zoom change keeps in place: the page, the point as fractions of its size, and where it was. */
+type ZoomAnchor = { page: number; x: number; y: number; clientX: number; clientY: number };
 
 /** Padding around the pages, in CSS pixels (p-6). */
 const padding = 24;
@@ -105,7 +108,7 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const editingInput = useRef<HTMLTextAreaElement>(null);
   const [replaceHint, setReplaceHint] = useState(false);
   const pageElements = useRef<HTMLElement[]>([]);
-  const zoomAnchor = useRef<number | null>(null);
+  const zoomAnchor = useRef<ZoomAnchor | null>(null);
 
   /**
    * Undo or redo can remove the focused box, or disable the focused button. The focus then goes to the pages, not back
@@ -154,20 +157,52 @@ function EditorView({ file, pages }: { file: File; pages: Page[] }) {
   const fittedZoom = fitWidth(availableWidth, widest);
   const zoom = zoomSetting === "fit" ? fittedZoom : zoomSetting;
 
-  // Keeps the middle of the view on the same part of the document when the zoom changes.
-  function changeZoom(setting: ZoomSetting) {
+  /**
+   * Changes the zoom, keeping the part of the document at a point in the view (the pointer, or the middle of the view)
+   * at that point.
+   */
+  function changeZoom(setting: ZoomSetting, at?: { clientX: number; clientY: number }) {
     if (scroller && (setting === "fit" ? fittedZoom : setting) !== zoom) {
-      zoomAnchor.current = (scroller.scrollTop + scroller.clientHeight / 2) / scroller.scrollHeight;
+      const view = scroller.getBoundingClientRect();
+      const { clientX, clientY } = at ?? { clientX: view.left + view.width / 2, clientY: view.top + view.height / 2 };
+      const rects = pageElements.current.map((element) => element.getBoundingClientRect());
+      // The page under the point, or the one after the gap it's in.
+      const index = Math.max(0, rects.findIndex((rect) => clientY < rect.bottom));
+      const rect = rects[index];
+      zoomAnchor.current = { page: index, x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height, clientX, clientY };
     }
     setZoomSetting(setting);
   }
 
   useLayoutEffect(() => {
-    if (scroller && zoomAnchor.current !== null) {
-      scroller.scrollTo({ top: zoomAnchor.current * scroller.scrollHeight - scroller.clientHeight / 2 });
+    const anchor = zoomAnchor.current;
+    if (scroller && anchor) {
+      const rect = pageElements.current[anchor.page].getBoundingClientRect();
+      scroller.scrollBy({ left: rect.left + anchor.x * rect.width - anchor.clientX, top: rect.top + anchor.y * rect.height - anchor.clientY });
       zoomAnchor.current = null;
     }
   }, [zoom, scroller]);
+
+  // Ctrl+wheel and a trackpad pinch zoom the pages, not the browser. Each event is applied at once, so the next one
+  // starts from its zoom and layout.
+  const onWheel = useEffectEvent((event: WheelEvent) => {
+    if (!(event.ctrlKey || event.metaKey) || !scroller) {
+      return;
+    }
+    event.preventDefault();
+    const view = scroller.getBoundingClientRect();
+    const inView = event.clientX >= view.left && event.clientX < view.right && event.clientY >= view.top && event.clientY < view.bottom;
+    // Firefox can report a mouse wheel in lines.
+    const deltaY = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 40 : event.deltaY;
+    flushSync(() => changeZoom(wheelZoom(zoom, deltaY), inView ? event : undefined));
+  });
+
+  useEffect(() => {
+    const listener = (event: WheelEvent) => onWheel(event);
+    // Not passive, so it can stop the browser zooming.
+    window.addEventListener("wheel", listener, { passive: false });
+    return () => window.removeEventListener("wheel", listener);
+  }, []);
 
   function updateCurrentPage() {
     const tops = pageElements.current.map((element) => element.offsetTop);

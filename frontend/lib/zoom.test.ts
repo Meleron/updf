@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { fitWidth, maxZoom, minZoom, zoomIn, zoomOut } from "./zoom";
+import { fitWidth, maxZoom, minZoom, wheelZoom, zoomIn, zoomOut } from "./zoom";
 
 it("fits an A4 page into the available width at actual size or larger", () => {
   // A4 is 595pt wide, which is 793.33 CSS pixels at 100%.
@@ -38,4 +38,18 @@ it("stays within 50% to 200%", () => {
   expect(zoomIn(maxZoom)).toBe(maxZoom);
   expect(zoomOut(minZoom)).toBe(minZoom);
   expect(zoomOut(0.41)).toBe(minZoom);
+});
+
+it("zooms by about a fifth per mouse wheel notch, in and out alike", () => {
+  expect(wheelZoom(1, -100)).toBeCloseTo(1.22, 2);
+  expect(wheelZoom(wheelZoom(1, -100), 100)).toBeCloseTo(1);
+});
+
+it("zooms a little for a pinch's small steps", () => {
+  expect(wheelZoom(1, -2)).toBeCloseTo(1.004, 3);
+});
+
+it("keeps wheel zoom within 50% to 200%", () => {
+  expect(wheelZoom(1.9, -1000)).toBe(maxZoom);
+  expect(wheelZoom(0.6, 1000)).toBe(minZoom);
 });

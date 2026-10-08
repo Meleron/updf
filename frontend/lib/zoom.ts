@@ -16,3 +16,11 @@ export function zoomIn(zoom: number): number {
 export function zoomOut(zoom: number): number {
   return zoomSteps.findLast((step) => step < zoom - 0.001) ?? minZoom;
 }
+
+/**
+ * The zoom after a Ctrl+wheel event with a vertical delta in pixels: about a fifth per mouse wheel notch (100 pixels),
+ * and smoothly for the small deltas of a trackpad pinch.
+ */
+export function wheelZoom(zoom: number, deltaY: number): number {
+  return Math.min(maxZoom, Math.max(minZoom, zoom * Math.exp(-deltaY / 500)));
+}

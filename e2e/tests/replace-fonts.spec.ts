@@ -24,6 +24,8 @@ async function openFontsPdf(page: Page) {
   await openInEditor(page, "fonts.pdf");
   await page.getByRole("button", { name: /^Zoom: / }).click();
   await page.getByRole("menuitemradio", { name: "200%", exact: true }).click();
+  // Zooming keeps the middle of the view in place, and the lines start near the page's left edge.
+  await page.getByTestId("pages").evaluate((element) => element.scrollTo({ left: 0 }));
   await expect(pageImage(page, 1, 1)).toHaveAttribute("aria-busy", "false");
 }
 

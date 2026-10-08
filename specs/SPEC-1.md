@@ -127,7 +127,7 @@ This contract is shared by the frontend, the backend and autosave. There's one e
 
 **Undo and redo:** `Ctrl+Z` and `Ctrl+Shift+Z` (`Cmd` on macOS), and the top bar buttons. Each completed action is one step: create, finish an edit, change a style, move, delete. A new box and its text are one step, and so is any formatting done while typing. Arrow presses in a row on one box are one move. While typing, the shortcuts undo typing in the box.
 
-**Zoom:** fits the page width by default, adjustable from 50% to 200%.
+**Zoom:** fits the page width by default, adjustable from 50% to 200% with the top bar, or with Ctrl+wheel and a trackpad pinch around the pointer (not the browser's zoom). A zoom change keeps the point it centres on in place.
 
 **Autosave**
 - The document and edits are saved one second after each change.
