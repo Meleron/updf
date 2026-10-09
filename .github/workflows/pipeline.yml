@@ -51,3 +51,11 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+
+  images:
+    name: Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose build

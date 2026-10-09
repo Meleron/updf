@@ -100,9 +100,10 @@ Two workflows: `.github/workflows/pipeline.yml` (the checks and delivery) and `.
 **Checks** (every pull request and every push to `main`)
 1. **Backend:** `dotnet format --verify-no-changes`, build and tests.
 2. **Frontend:** lint, type-check and Vitest.
-3. **Infrastructure:** `terraform fmt -check` and `terraform validate` for `shared` and `app` (no Azure access needed), and a PSScriptAnalyzer lint of the runbook.
+3. **Images:** `docker compose build`, so a broken Dockerfile fails the pull request.
+4. **Infrastructure:** `terraform fmt -check` and `terraform validate` for `shared` and `app` (no Azure access needed), and a PSScriptAnalyzer lint of the runbook.
 
-The checks take about a minute, so a pull request isn't held up by the end-to-end suite.
+The checks run in parallel and take a few minutes, so a pull request isn't held up by the end-to-end suite.
 
 **End-to-end** (on request, a separate workflow `.github/workflows/e2e.yml`)
 
@@ -110,9 +111,9 @@ Started by hand on any branch, from the Actions tab or `gh workflow run`, for ex
 
 **Delivery** (only pushes to `main`, after every check passes)
 
-4. **Publish:** build both images and push them to GHCR, tagged with the commit SHA. Staging and production run these same images; nothing is rebuilt between them.
-5. **Staging** (GitHub environment `staging`): `terraform apply` of `infra/app` with `staging.tfvars` and the tag, then the smoke test against staging.
-6. **Production** (GitHub environment `production`, which needs the owner's approval): the same, with `prod.tfvars`, then the smoke test against production.
+5. **Publish:** build both images and push them to GHCR, tagged with the commit SHA. Staging and production run these same images; nothing is rebuilt between them.
+6. **Staging** (GitHub environment `staging`): `terraform apply` of `infra/app` with `staging.tfvars` and the tag, then the smoke test against staging.
+7. **Production** (GitHub environment `production`, which needs the owner's approval): the same, with `prod.tfvars`, then the smoke test against production.
 
 **Smoke test.** One existing Playwright test, tagged `@smoke`, run only in Chromium against the deployed frontend: open a PDF, add text, download it, and check the PDF. It covers the real wiring: the addresses, CORS, the backend starting from zero, and forwarded headers.
 
