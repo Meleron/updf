@@ -12,7 +12,7 @@ It stays a learning and portfolio project: low cost, done properly, no enterpris
 - A public GitHub repository with a protected `main`.
 - Two Azure environments, staging and production, on Azure Container Apps.
 - Terraform for all Azure resources, with remote state.
-- A pipeline: checks on every pull request, then staging, then production after the owner's approval. Rollback to any earlier commit.
+- A pipeline: fast checks on every pull request, then staging, then production after the owner's approval. Rollback to any earlier commit. The end-to-end suite runs on request.
 - Cost protection: hard limits on what can run, and a budget kill switch.
 - One app change: rate limiting by the real client address behind Azure's proxy.
 - A manual checklist for the owner, and deployment docs.
@@ -47,7 +47,7 @@ It stays a learning and portfolio project: low cost, done properly, no enterpris
 GitHub (public repo, protected main)
   Actions pipeline ── OIDC ──> Azure (rg-updf-staging, rg-updf-prod)
         │
-        └── pushes tested images ──> GHCR (public) <── pulled by Container Apps
+        └── pushes images ──────────> GHCR (public) <── pulled by Container Apps
 
 Per environment (resource group rg-updf-<env>):
   Log Analytics workspace (30-day retention, daily ingestion cap)
@@ -95,19 +95,24 @@ infra/
 
 ## Pipeline
 
-One workflow, `.github/workflows/pipeline.yml`.
+Two workflows: `.github/workflows/pipeline.yml` (the checks and delivery) and `.github/workflows/e2e.yml` (the end-to-end suite, on request).
 
 **Checks** (every pull request and every push to `main`)
 1. **Backend:** `dotnet format --verify-no-changes`, build and tests.
 2. **Frontend:** lint, type-check and Vitest.
 3. **Infrastructure:** `terraform fmt -check` and `terraform validate` for `shared` and `app` (no Azure access needed), and a PSScriptAnalyzer lint of the runbook.
-4. **End-to-end:** build both images, start the stack with Docker Compose, and run the whole Playwright suite in all four projects with `scripts/e2e.sh`, the same Playwright image used locally, so the screenshot baselines match. `CI` is set, so failing tests are retried, and the first retry keeps a trace. On failure, the HTML report and test results (traces, screenshots, videos) are uploaded as artifacts.
+
+The checks take about a minute, so a pull request isn't held up by the end-to-end suite.
+
+**End-to-end** (on request, a separate workflow `.github/workflows/e2e.yml`)
+
+Started by hand on any branch, from the Actions tab or `gh workflow run`, for example before merging a change to the editor. It builds both images, starts the stack with Docker Compose, and runs the Playwright suite with `scripts/e2e.sh`, the same Playwright image used locally, so the screenshot baselines match. By default it runs the whole suite in all four projects (about 11 minutes); an optional input passes arguments to `playwright test`. `CI` is set, so failing tests are retried, and the first retry keeps a trace. On failure, the HTML report and test results (traces, screenshots, videos) are uploaded as artifacts.
 
 **Delivery** (only pushes to `main`, after every check passes)
 
-5. **Publish:** push the images that the end-to-end job just tested to GHCR, tagged with the commit SHA. Nothing is rebuilt between testing and deploying.
-6. **Staging** (GitHub environment `staging`): `terraform apply` of `infra/app` with `staging.tfvars` and the tag, then the smoke test against staging.
-7. **Production** (GitHub environment `production`, which needs the owner's approval): the same, with `prod.tfvars`, then the smoke test against production.
+4. **Publish:** build both images and push them to GHCR, tagged with the commit SHA. Staging and production run these same images; nothing is rebuilt between them.
+5. **Staging** (GitHub environment `staging`): `terraform apply` of `infra/app` with `staging.tfvars` and the tag, then the smoke test against staging.
+6. **Production** (GitHub environment `production`, which needs the owner's approval): the same, with `prod.tfvars`, then the smoke test against production.
 
 **Smoke test.** One existing Playwright test, tagged `@smoke`, run only in Chromium against the deployed frontend: open a PDF, add text, download it, and check the PDF. It covers the real wiring: the addresses, CORS, the backend starting from zero, and forwarded headers.
 

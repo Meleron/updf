@@ -1,4 +1,5 @@
 # Checks every pull request and every push to main (specs/SPEC-2.md, Pipeline). The delivery stages come with F-019.
+# The Playwright suite runs on request, in e2e.yml.
 name: Pipeline
 
 on:
@@ -50,35 +51,3 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-
-  e2e:
-    name: End-to-end
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-      - run: npm ci
-        working-directory: e2e
-      - run: npm run typecheck
-        working-directory: e2e
-      - name: Start the stack
-        run: scripts/start.sh
-      # The Playwright image, as locally, so screenshots match their baselines. CI is set: failing tests are retried.
-      - name: Run the Playwright suite
-        run: scripts/e2e.sh
-      - name: Show the stack's logs
-        if: failure()
-        run: docker compose logs
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: playwright-report
-          path: |
-            e2e/playwright-report/
-            e2e/test-results/
-          retention-days: 14
