@@ -82,6 +82,43 @@ public class ExportErrorTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Behind_a_proxy_each_forwarded_client_address_has_its_own_rate_limit()
+    {
+        using var defaults = new WebApplicationFactory();
+        var proxied = defaults.WithWebHostBuilder(b => b.UseSetting("FORWARDEDHEADERS_ENABLED", "true"));
+        // The proxy appends the address it sees, so only the last entry counts, whatever the client sent before it.
+        var first = Enumerable.Range(0, 11).Select(i => ForwardedFrom(proxied, $"198.51.100.{i}, 203.0.113.1")).ToArray();
+
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, (await first[i].PostExport(null, null)).StatusCode);
+        }
+
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, (await ForwardedFrom(proxied, "203.0.113.2").PostExport(null, null)).StatusCode);
+        await AssertProblem(await first[10].PostExport(null, null), HttpStatusCode.TooManyRequests, "rate-limited");
+    }
+
+    [Fact]
+    public async Task Without_the_proxy_setting_forwarded_addresses_are_ignored()
+    {
+        using var defaults = new WebApplicationFactory();
+
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.NotEqual(HttpStatusCode.TooManyRequests, (await ForwardedFrom(defaults, "203.0.113.1").PostExport(null, null)).StatusCode);
+        }
+
+        await AssertProblem(await ForwardedFrom(defaults, "203.0.113.2").PostExport(null, null), HttpStatusCode.TooManyRequests, "rate-limited");
+    }
+
+    private static HttpClient ForwardedFrom(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string forwardedFor)
+    {
+        var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", forwardedFor);
+        return client;
+    }
+
+    [Fact]
     public async Task Processing_over_the_timeout_is_stopped()
     {
         using var slow = new ApiFactory();
