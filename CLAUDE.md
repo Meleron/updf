@@ -26,6 +26,7 @@ Run from the repo root. Tests use Microsoft.Testing.Platform (set in `global.jso
 - Test PDFs: `dotnet run fixtures/generate.cs` regenerates `fixtures/pdfs` (committed).
 - Fonts: `dotnet run fonts/download.cs` downloads the open families it lists into `fonts/` (committed) with their licences, then regenerate the frontend's face data (below).
 - End-to-end (after `npm ci` in `e2e/`, with the stack running): `scripts/e2e.sh` (Windows: `scripts\e2e.cmd`) runs the suite in the official Playwright image, where screenshots match their baselines; arguments go to `playwright test`, e.g. `scripts/e2e.sh --project=webkit tests/viewer.spec.ts -g "<name>"`. Projects: chromium, firefox, webkit, mobile (Pixel 7). `BASE_URL` overrides `http://localhost:3000`.
+- CI (GitHub Actions): `pipeline.yml` runs the backend and frontend checks and builds the images on every pull request and push to `main` (required to merge). The Playwright suite runs only on request: `gh workflow run e2e.yml --ref <branch>` (optional `-f args="--project=webkit"`), then `gh run watch`.
 
 ## Architecture
 
