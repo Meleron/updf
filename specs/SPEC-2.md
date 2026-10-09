@@ -103,7 +103,7 @@ Two workflows: `.github/workflows/pipeline.yml` (the checks and delivery) and `.
 3. **Images:** `docker compose build`, so a broken Dockerfile fails the pull request.
 4. **Infrastructure:** `terraform fmt -check` and `terraform validate` for `shared` and `app` (no Azure access needed), and a PSScriptAnalyzer lint of the runbook.
 
-The checks run in parallel and take a few minutes, so a pull request isn't held up by the end-to-end suite.
+The checks run in parallel and take about a minute, so a pull request isn't held up by the end-to-end suite.
 
 **End-to-end** (on request, a separate workflow `.github/workflows/e2e.yml`)
 
